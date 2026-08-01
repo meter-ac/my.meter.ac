@@ -117,7 +117,10 @@ body {
   display: flex;
   border: 1px solid #ccc;
   border-radius: 4px;
-  overflow: hidden;
+  /* Not overflow:hidden — on a flex container that collapses the auto
+     height to the border-box (~5px, clipping the buttons to slivers)
+     instead of sizing to content. Corners are rounded on the end buttons
+     directly instead. */
 }
 
 .layer-controls__segmented button {
@@ -126,8 +129,19 @@ body {
   background: white;
   padding: 0.3rem 0.4rem;
   font-size: 0.78rem;
+  font-family: inherit;
   cursor: pointer;
   color: #333;
+}
+
+.layer-controls__segmented button:first-child {
+  border-top-left-radius: 3px;
+  border-bottom-left-radius: 3px;
+}
+
+.layer-controls__segmented button:last-child {
+  border-top-right-radius: 3px;
+  border-bottom-right-radius: 3px;
 }
 
 .layer-controls__segmented button + button {
@@ -443,7 +457,27 @@ body {
 
 .table-view__categories {
   align-self: flex-start;
-  margin-bottom: 0.6rem;
+  margin-bottom: 0.75rem;
+  border-color: #9fadb8;
+}
+
+/* .layer-controls__segmented's white-on-white default only reads on the
+   map's floating white panel (shadow gives it edges) — on the plain page
+   background here it needs its own visible chrome. */
+.table-view__categories button {
+  background: #eef1f4;
+  color: #14324b;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.82rem;
+}
+
+.table-view__categories button + button {
+  border-left-color: #9fadb8;
+}
+
+.table-view__categories button.is-active {
+  background: #14324b;
+  color: white;
 }
 
 .table-view__status {
