@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import StationMap from './components/StationMap.jsx';
 import LayerControls from './components/LayerControls.jsx';
+import TableView from './components/TableView.jsx';
+import CameraGallery from './components/CameraGallery.jsx';
+import HistoryModal from './components/HistoryModal.jsx';
 import {
   fetchStations,
   fetchLatestReadings,
@@ -31,6 +34,8 @@ export default function App() {
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [showContours, setShowContours] = useState(false);
   const [dataMode, setDataMode] = useState('current'); // 'current' | 'day-average' | 'time-lapse'
+  const [view, setView] = useState('map'); // 'map' | 'table' | 'cameras'
+  const [historyStation, setHistoryStation] = useState(null);
 
   const [timeLapseFrames, setTimeLapseFrames] = useState([]);
   const [frameIndex, setFrameIndex] = useState(0);
@@ -161,10 +166,21 @@ export default function App() {
     <div className="app">
       <header className="app__header">
         <h1>METER.AC</h1>
-        <span className="app__subtitle">{subtitle}</span>
+        <nav className="app__tabs">
+          {[
+            ['map', 'Map'],
+            ['table', 'Table'],
+            ['cameras', 'Cameras'],
+          ].map(([key, label]) => (
+            <button key={key} type="button" className={view === key ? 'is-active' : ''} onClick={() => setView(key)}>
+              {label}
+            </button>
+          ))}
+        </nav>
+        {view === 'map' && <span className="app__subtitle">{subtitle}</span>}
       </header>
       {error && <div className="app__error">Failed to load data: {error}</div>}
-      {stations && (
+      {stations && view === 'map' && (
         <div className="app__map-wrap">
           <StationMap
             stations={stations}
@@ -179,6 +195,7 @@ export default function App() {
             showContours={showContours}
             contourStep={activeField?.contourStep}
             contourUnit={activeField?.unit}
+            onViewHistory={setHistoryStation}
           />
           <LayerControls
             dataMode={dataMode}
@@ -203,6 +220,17 @@ export default function App() {
             timeLapseError={timeLapseError}
           />
         </div>
+      )}
+      {stations && view === 'table' && (
+        <TableView stations={stations} readings={currentReadings} onSelectStation={setHistoryStation} />
+      )}
+      {stations && view === 'cameras' && <CameraGallery stations={stations} />}
+      {historyStation && (
+        <HistoryModal
+          stationId={historyStation.id}
+          stationName={historyStation.name}
+          onClose={() => setHistoryStation(null)}
+        />
       )}
     </div>
   );

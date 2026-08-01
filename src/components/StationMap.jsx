@@ -1,6 +1,7 @@
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import { READING_FIELDS } from '../api/meterApi.js';
+import { timeAgo, formatReading } from '../utils/format.js';
 import HeatmapOverlay from './HeatmapOverlay.jsx';
 import ContourLayer from './ContourLayer.jsx';
 
@@ -18,21 +19,7 @@ function iconForColor(color) {
   });
 }
 
-function timeAgo(unixSeconds) {
-  if (!unixSeconds) return 'unknown';
-  const seconds = Math.max(0, Math.round(Date.now() / 1000 - unixSeconds));
-  if (seconds < 60) return `${seconds}s ago`;
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes} min ago`;
-  const hours = Math.round(minutes / 60);
-  return `${hours} h ago`;
-}
-
-function formatReading(value) {
-  return Math.round(value * 10) / 10;
-}
-
-function StationPopup({ station, reading, isDayAverage, isTimeLapse }) {
+function StationPopup({ station, reading, isDayAverage, isTimeLapse, onViewHistory }) {
   const fields = reading
     ? READING_FIELDS.filter((f) => reading[f.key] !== null && reading[f.key] !== undefined)
     : [];
@@ -67,14 +54,19 @@ function StationPopup({ station, reading, isDayAverage, isTimeLapse }) {
           {isTimeLapse ? 'No data at this time' : isDayAverage ? 'No data in last 24h' : 'No recent readings'}
         </div>
       )}
-      <a
-        className="station-popup__link"
-        href={`https://meter.ac/gs/nodes/${station.id}/history.html`}
-        target="_blank"
-        rel="noreferrer"
-      >
-        Full history →
-      </a>
+      <div className="station-popup__links">
+        <button type="button" className="station-popup__link station-popup__link--button" onClick={() => onViewHistory(station)}>
+          View history
+        </button>
+        <a
+          className="station-popup__link"
+          href={`https://meter.ac/gs/nodes/${station.id}/history.html`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Full history on meter.ac →
+        </a>
+      </div>
     </div>
   );
 }
@@ -92,6 +84,7 @@ export default function StationMap({
   showContours,
   contourStep,
   contourUnit,
+  onViewHistory,
 }) {
   return (
     <MapContainer center={BULGARIA_CENTER} zoom={7} className="map" preferCanvas>
@@ -125,7 +118,13 @@ export default function StationMap({
         return (
           <Marker key={station.id} position={[station.lat, station.lon]} icon={iconForColor(color)}>
             <Popup>
-              <StationPopup station={station} reading={reading} isDayAverage={isDayAverage} isTimeLapse={isTimeLapse} />
+              <StationPopup
+                station={station}
+                reading={reading}
+                isDayAverage={isDayAverage}
+                isTimeLapse={isTimeLapse}
+                onViewHistory={onViewHistory}
+              />
             </Popup>
           </Marker>
         );

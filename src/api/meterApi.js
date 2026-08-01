@@ -1,4 +1,5 @@
 const NODES_CSV_URL = 'https://meter.ac/gs/metadata/nodes.csv';
+const NODES_TXT_URL = 'https://meter.ac/gs/nodes/nodes.txt';
 const INFLUX_QUERY_URL = 'https://meter.uni-plovdiv.net/query';
 const INFLUX_DB = 'meter';
 const INFLUX_USER = 'client';
@@ -135,4 +136,39 @@ export async function fetchParameterTimeSeries(parameterKey) {
   }
 
   return frames;
+}
+
+// Single-node history for the chart modal — one node, so all fields at once
+// is cheap (unlike the time-lapse case, which is one field across all nodes).
+export async function fetchNodeHistory(nodeId, hours) {
+  const query = `select time, ${FIELD_KEYS.join(', ')} from box where node_id='${nodeId}' and time > now() - ${hours}h order by time asc`;
+  const url = `${INFLUX_QUERY_URL}?db=${INFLUX_DB}&u=${INFLUX_USER}&p=${INFLUX_PASSWORD}&q=${encodeURIComponent(query)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to load node history (${res.status})`);
+  const data = await res.json();
+  const series = data?.results?.[0]?.series ?? [];
+  if (series.length === 0) return [];
+  const { columns, values } = series[0];
+  return values.map((row) => {
+    const point = {};
+    columns.forEach((col, i) => {
+      point[col] = row[i];
+    });
+    return point;
+  });
+}
+
+// meterac-ui's own nodes.js parses this same "cams :" line from nodes.txt at
+// build time to set each node's camera flag — nodes.csv doesn't carry it.
+export async function fetchCameraNodeIds() {
+  const res = await fetch(NODES_TXT_URL);
+  if (!res.ok) throw new Error(`Failed to load camera list (${res.status})`);
+  const text = await res.text();
+  const camsLine = text.split('\n').find((line) => line.startsWith('cams'));
+  if (!camsLine) return [];
+  return camsLine
+    .replace(/^cams\s*:\s*/, '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
 }
