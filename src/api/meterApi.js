@@ -6,9 +6,19 @@ const INFLUX_PASSWORD = 'pvY6wQNcT8cqDEfZ';
 
 const FIELD_KEYS = ['t_raw', 't_dew', 'p_raw', 'p_sea', 'rh', 'pm25', 'pm10', 'gamma_cpm'];
 
-const LATEST_QUERY = `select last(ts) as ts, ${FIELD_KEYS.map((k) => `last(${k}) as ${k}`).join(', ')} from box where location != 'unknown' and location !~ /^test_/ and time > now() - 2h group by node_id`;
+// meterac-ui's own build-time node list (src/_data/nodes.js) drops these by
+// name alongside anything location-prefixed "test_" — a hand-picked
+// exclusion list (known test rig / decommissioned hut), not a freshness
+// check. nodes.csv doesn't apply it, so without this our map was showing
+// "test_indoors" as a real station and Makedonia_Hut was actually getting
+// live InfluxDB readings (its name doesn't start with "test_", so the
+// `!~ /^test_/` filter alone didn't catch it).
+const EXCLUDED_LOCATIONS = ['test_indoors', 'Makedonia_Hut'];
+const LOCATION_FILTER = `location != 'unknown' and location !~ /^test_/${EXCLUDED_LOCATIONS.map((loc) => ` and location != '${loc}'`).join('')}`;
 
-const DAY_AVERAGE_QUERY = `select ${FIELD_KEYS.map((k) => `mean(${k}) as ${k}`).join(', ')}, count(t_raw) as sample_count from box where location != 'unknown' and location !~ /^test_/ and time > now() - 24h group by node_id`;
+const LATEST_QUERY = `select last(ts) as ts, ${FIELD_KEYS.map((k) => `last(${k}) as ${k}`).join(', ')} from box where ${LOCATION_FILTER} and time > now() - 2h group by node_id`;
+
+const DAY_AVERAGE_QUERY = `select ${FIELD_KEYS.map((k) => `mean(${k}) as ${k}`).join(', ')}, count(t_raw) as sample_count from box where ${LOCATION_FILTER} and time > now() - 24h group by node_id`;
 
 // p_raw is the station's raw ambient reading (altitude-dependent, not
 // comparable station-to-station); p_sea is that same reading reduced to
@@ -54,7 +64,14 @@ export async function fetchStations() {
       lat: Number(row.Latitude),
       lon: Number(row.Longitude),
     }))
-    .filter((s) => s.id && Number.isFinite(s.lat) && Number.isFinite(s.lon));
+    .filter(
+      (s) =>
+        s.id &&
+        Number.isFinite(s.lat) &&
+        Number.isFinite(s.lon) &&
+        !EXCLUDED_LOCATIONS.includes(s.name) &&
+        !s.name?.startsWith('test_'),
+    );
 }
 
 async function runInfluxQuery(query) {
@@ -95,7 +112,7 @@ const TIME_LAPSE_BUCKET_MINUTES = 30;
 // site (marker coloring, popup field list) works unchanged on a time-lapse
 // frame without special-casing.
 export async function fetchParameterTimeSeries(parameterKey) {
-  const query = `select mean(${parameterKey}) as ${parameterKey} from box where location != 'unknown' and location !~ /^test_/ and time > now() - ${TIME_LAPSE_HOURS}h group by node_id, time(${TIME_LAPSE_BUCKET_MINUTES}m) fill(none)`;
+  const query = `select mean(${parameterKey}) as ${parameterKey} from box where ${LOCATION_FILTER} and time > now() - ${TIME_LAPSE_HOURS}h group by node_id, time(${TIME_LAPSE_BUCKET_MINUTES}m) fill(none)`;
   const url = `${INFLUX_QUERY_URL}?db=${INFLUX_DB}&u=${INFLUX_USER}&p=${INFLUX_PASSWORD}&q=${encodeURIComponent(query)}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to load time series (${res.status})`);
