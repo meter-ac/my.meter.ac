@@ -1,21 +1,21 @@
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import { READING_FIELDS } from '../api/meterApi.js';
+import HeatmapOverlay from './HeatmapOverlay.jsx';
 
 const BULGARIA_CENTER = [42.5, 25.4];
+const OFFLINE_COLOR = '#9aa5ad';
+const ONLINE_DEFAULT_COLOR = '#2e9e4f';
 
-function makeIcon(online) {
+function iconForColor(color) {
   return L.divIcon({
     className: '',
-    html: `<span class="station-dot ${online ? 'station-dot--online' : 'station-dot--offline'}"></span>`,
+    html: `<span class="station-dot" style="background:${color}"></span>`,
     iconSize: [14, 14],
     iconAnchor: [7, 7],
     popupAnchor: [0, -7],
   });
 }
-
-const onlineIcon = makeIcon(true);
-const offlineIcon = makeIcon(false);
 
 function timeAgo(unixSeconds) {
   if (!unixSeconds) return 'unknown';
@@ -66,21 +66,34 @@ function StationPopup({ station, reading }) {
   );
 }
 
-export default function StationMap({ stations, readings }) {
+export default function StationMap({ stations, readings, selectedParameter, colorScale, showHeatmap }) {
   return (
     <MapContainer center={BULGARIA_CENTER} zoom={7} className="map">
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
+      {showHeatmap && selectedParameter && colorScale && (
+        <HeatmapOverlay
+          stations={stations}
+          readings={readings}
+          parameterKey={selectedParameter}
+          getColorForValue={colorScale.getColorForValue}
+        />
+      )}
       {stations.map((station) => {
         const reading = readings.get(station.id);
+        let color = OFFLINE_COLOR;
+        if (reading) {
+          const value = selectedParameter ? reading[selectedParameter] : undefined;
+          if (selectedParameter && colorScale) {
+            color = typeof value === 'number' && Number.isFinite(value) ? colorScale.getColor(value) : OFFLINE_COLOR;
+          } else if (!selectedParameter) {
+            color = ONLINE_DEFAULT_COLOR;
+          }
+        }
         return (
-          <Marker
-            key={station.id}
-            position={[station.lat, station.lon]}
-            icon={reading ? onlineIcon : offlineIcon}
-          >
+          <Marker key={station.id} position={[station.lat, station.lon]} icon={iconForColor(color)}>
             <Popup>
               <StationPopup station={station} reading={reading} />
             </Popup>

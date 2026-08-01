@@ -47,8 +47,13 @@ body {
   font-size: 0.85rem;
 }
 
-.map {
+.app__map-wrap {
+  position: relative;
   flex: 1 1 auto;
+}
+
+.map {
+  height: 100%;
   width: 100%;
 }
 
@@ -61,12 +66,50 @@ body {
   box-shadow: 0 0 2px rgba(0, 0, 0, 0.6);
 }
 
-.station-dot--online {
-  background: #2e9e4f;
+.layer-controls {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 1000;
+  background: white;
+  border-radius: 6px;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.4);
+  padding: 0.6rem 0.75rem;
+  font-size: 0.85rem;
+  min-width: 190px;
 }
 
-.station-dot--offline {
-  background: #9aa5ad;
+.layer-controls__section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-bottom: 0.5rem;
+}
+
+.layer-controls select {
+  font-size: 0.85rem;
+  padding: 0.2rem;
+}
+
+.layer-controls__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+  cursor: pointer;
+}
+
+.layer-controls__gradient {
+  height: 10px;
+  border-radius: 3px;
+}
+
+.layer-controls__legend-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: #555;
+  margin-top: 0.15rem;
 }
 
 .station-popup h3 {
