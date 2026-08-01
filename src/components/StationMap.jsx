@@ -2,6 +2,7 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import { READING_FIELDS } from '../api/meterApi.js';
 import HeatmapOverlay from './HeatmapOverlay.jsx';
+import ContourLayer from './ContourLayer.jsx';
 
 const BULGARIA_CENTER = [42.5, 25.4];
 const OFFLINE_COLOR = '#9aa5ad';
@@ -66,19 +67,33 @@ function StationPopup({ station, reading }) {
   );
 }
 
-export default function StationMap({ stations, readings, selectedParameter, colorScale, showHeatmap }) {
+export default function StationMap({
+  stations,
+  readings,
+  selectedParameter,
+  colorScale,
+  valueGrid,
+  showHeatmap,
+  showContours,
+  contourStep,
+  contourUnit,
+}) {
   return (
-    <MapContainer center={BULGARIA_CENTER} zoom={7} className="map">
+    <MapContainer center={BULGARIA_CENTER} zoom={7} className="map" preferCanvas>
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       {showHeatmap && selectedParameter && colorScale && (
-        <HeatmapOverlay
-          stations={stations}
-          readings={readings}
-          parameterKey={selectedParameter}
-          getColorForValue={colorScale.getColorForValue}
+        <HeatmapOverlay valueGrid={valueGrid} getColorForValue={colorScale.getColorForValue} />
+      )}
+      {showContours && selectedParameter && colorScale && (
+        <ContourLayer
+          valueGrid={valueGrid}
+          min={colorScale.min}
+          max={colorScale.max}
+          step={contourStep}
+          unit={contourUnit}
         />
       )}
       {stations.map((station) => {

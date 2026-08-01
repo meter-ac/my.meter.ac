@@ -4,16 +4,25 @@ const INFLUX_DB = 'meter';
 const INFLUX_USER = 'client';
 const INFLUX_PASSWORD = 'pvY6wQNcT8cqDEfZ';
 
-const READINGS_QUERY = `select last(ts) as ts, last(t_raw) as t_raw, last(t_dew) as t_dew, last(p_sea) as p_sea, last(rh) as rh, last(pm25) as pm25, last(pm10) as pm10, last(gamma_cpm) as gamma_cpm from box where location != 'unknown' and location !~ /^test_/ and time > now() - 2h group by node_id`;
+const READINGS_QUERY = `select last(ts) as ts, last(t_raw) as t_raw, last(t_dew) as t_dew, last(p_raw) as p_raw, last(p_sea) as p_sea, last(rh) as rh, last(pm25) as pm25, last(pm10) as pm10, last(gamma_cpm) as gamma_cpm from box where location != 'unknown' and location !~ /^test_/ and time > now() - 2h group by node_id`;
 
+// p_raw is the station's raw ambient reading (altitude-dependent, not
+// comparable station-to-station); p_sea is that same reading reduced to
+// mean sea level by the ingest pipeline, which is what's actually meaningful
+// for isobars across stations at different elevations.
+//
+// contourStep is the spacing between contour lines, in the field's own unit —
+// fixed per parameter (like real isobar maps use a fixed 4 hPa step) rather than
+// derived from the live min/max, so a single outlier reading can't skew the spacing.
 export const READING_FIELDS = [
-  { key: 't_raw', label: 'Temperature', unit: '°C' },
-  { key: 't_dew', label: 'Dew point', unit: '°C' },
-  { key: 'p_sea', label: 'Pressure', unit: 'hPa' },
-  { key: 'rh', label: 'Humidity', unit: '%' },
-  { key: 'pm25', label: 'PM2.5', unit: 'µg/m³' },
-  { key: 'pm10', label: 'PM10', unit: 'µg/m³' },
-  { key: 'gamma_cpm', label: 'Radiation', unit: 'CPM' },
+  { key: 't_raw', label: 'Temperature', unit: '°C', contourStep: 2 },
+  { key: 't_dew', label: 'Dew point', unit: '°C', contourStep: 2 },
+  { key: 'p_raw', label: 'Pressure (measured)', unit: 'hPa', contourStep: 4 },
+  { key: 'p_sea', label: 'Pressure (sea level)', unit: 'hPa', contourStep: 4 },
+  { key: 'rh', label: 'Humidity', unit: '%', contourStep: 10 },
+  { key: 'pm25', label: 'PM2.5', unit: 'µg/m³', contourStep: 20 },
+  { key: 'pm10', label: 'PM10', unit: 'µg/m³', contourStep: 20 },
+  { key: 'gamma_cpm', label: 'Radiation', unit: 'CPM', contourStep: 10 },
 ];
 
 function parseCsv(text) {

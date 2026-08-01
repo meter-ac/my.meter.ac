@@ -11,6 +11,8 @@ export default function LayerControls({
   onSelectParameter,
   showHeatmap,
   onToggleHeatmap,
+  showContours,
+  onToggleContours,
   scale,
 }) {
   const gradientCss = `linear-gradient(to right, ${SCALE_STOPS.map(([r, g, b]) => `rgb(${r},${g},${b})`).join(', ')})`;
@@ -43,6 +45,14 @@ export default function LayerControls({
               onChange={(e) => onToggleHeatmap(e.target.checked)}
             />
             Show interpolated surface
+          </label>
+          <label className="layer-controls__checkbox">
+            <input
+              type="checkbox"
+              checked={showContours}
+              onChange={(e) => onToggleContours(e.target.checked)}
+            />
+            Show contour lines
           </label>
           <div className="layer-controls__legend">
             <div className="layer-controls__gradient" style={{ background: gradientCss }} />

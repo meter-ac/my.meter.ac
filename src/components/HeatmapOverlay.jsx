@@ -1,19 +1,12 @@
 import { useMemo } from 'react';
 import { ImageOverlay } from 'react-leaflet';
-import { buildHeatmapImage } from '../interpolation/idw.js';
+import { renderHeatmapImage } from '../interpolation/idw.js';
 
-export default function HeatmapOverlay({ stations, readings, parameterKey, getColorForValue }) {
+export default function HeatmapOverlay({ valueGrid, getColorForValue }) {
   const image = useMemo(() => {
-    const points = [];
-    for (const station of stations) {
-      const reading = readings.get(station.id);
-      const value = reading ? reading[parameterKey] : undefined;
-      if (typeof value === 'number' && Number.isFinite(value)) {
-        points.push({ lat: station.lat, lon: station.lon, value });
-      }
-    }
-    return buildHeatmapImage(points, getColorForValue);
-  }, [stations, readings, parameterKey, getColorForValue]);
+    if (!valueGrid) return null;
+    return renderHeatmapImage(valueGrid, getColorForValue);
+  }, [valueGrid, getColorForValue]);
 
   if (!image) return null;
 
