@@ -19,7 +19,7 @@ function iconForColor(color) {
   });
 }
 
-function StationPopup({ station, reading, isDayAverage, isTimeLapse, onViewHistory }) {
+function StationPopup({ station, reading, isDayAverage, isTimeLapse, onOpenNode }) {
   const fields = reading
     ? READING_FIELDS.filter((f) => reading[f.key] !== null && reading[f.key] !== undefined)
     : [];
@@ -55,8 +55,12 @@ function StationPopup({ station, reading, isDayAverage, isTimeLapse, onViewHisto
         </div>
       )}
       <div className="station-popup__links">
-        <button type="button" className="station-popup__link station-popup__link--button" onClick={() => onViewHistory(station)}>
-          View history
+        <button
+          type="button"
+          className="station-popup__link station-popup__link--button"
+          onClick={() => onOpenNode(station.id)}
+        >
+          View node page →
         </button>
         <a
           className="station-popup__link"
@@ -84,7 +88,7 @@ export default function StationMap({
   showContours,
   contourStep,
   contourUnit,
-  onViewHistory,
+  onOpenNode,
 }) {
   return (
     <MapContainer center={BULGARIA_CENTER} zoom={7} className="map" preferCanvas>
@@ -123,7 +127,7 @@ export default function StationMap({
                 reading={reading}
                 isDayAverage={isDayAverage}
                 isTimeLapse={isTimeLapse}
-                onViewHistory={onViewHistory}
+                onOpenNode={onOpenNode}
               />
             </Popup>
           </Marker>

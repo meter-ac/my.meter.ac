@@ -3,12 +3,13 @@ import StationMap from './components/StationMap.jsx';
 import LayerControls from './components/LayerControls.jsx';
 import TableView from './components/TableView.jsx';
 import CameraGallery from './components/CameraGallery.jsx';
-import HistoryModal from './components/HistoryModal.jsx';
+import NodeDetailPage from './components/NodeDetailPage.jsx';
 import {
   fetchStations,
   fetchLatestReadings,
   fetchDayAverageReadings,
   fetchParameterTimeSeries,
+  fetchCameraNodeIds,
   READING_FIELDS,
 } from './api/meterApi.js';
 import { DERIVED_LAYERS } from './api/derivedLayers.js';
@@ -25,17 +26,31 @@ function formatFrameTime(isoString) {
   });
 }
 
+const TAB_VIEWS = ['map', 'table', 'cameras'];
+
+// No router dependency — just enough history/URL syncing to give each node
+// its own shareable/bookmarkable link (?node=ID) and make browser back/
+// forward work, since the app only has this one real "page" concept.
+function readLocation() {
+  const params = new URLSearchParams(window.location.search);
+  const nodeId = params.get('node');
+  if (nodeId) return { view: 'node', nodeId };
+  const v = params.get('view');
+  return { view: TAB_VIEWS.includes(v) ? v : 'map', nodeId: null };
+}
+
 export default function App() {
   const [stations, setStations] = useState(null);
   const [currentReadings, setCurrentReadings] = useState(new Map());
   const [dayAverageReadings, setDayAverageReadings] = useState(new Map());
+  const [cameraIds, setCameraIds] = useState(new Set());
   const [error, setError] = useState(null);
   const [selectedParameter, setSelectedParameter] = useState(null);
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [showContours, setShowContours] = useState(false);
   const [dataMode, setDataMode] = useState('current'); // 'current' | 'day-average' | 'time-lapse'
-  const [view, setView] = useState('map'); // 'map' | 'table' | 'cameras'
-  const [historyStation, setHistoryStation] = useState(null);
+  const [view, setView] = useState('map'); // 'map' | 'table' | 'cameras' | 'node'
+  const [selectedNodeId, setSelectedNodeId] = useState(null);
 
   const [timeLapseFrames, setTimeLapseFrames] = useState([]);
   const [frameIndex, setFrameIndex] = useState(0);
@@ -45,14 +60,38 @@ export default function App() {
   const frameGridCache = useRef(new Map());
 
   useEffect(() => {
-    Promise.all([fetchStations(), fetchLatestReadings(), fetchDayAverageReadings()])
-      .then(([stationList, latest, dayAverage]) => {
+    Promise.all([fetchStations(), fetchLatestReadings(), fetchDayAverageReadings(), fetchCameraNodeIds()])
+      .then(([stationList, latest, dayAverage, cameraList]) => {
         setStations(stationList);
         setCurrentReadings(latest);
         setDayAverageReadings(dayAverage);
+        setCameraIds(new Set(cameraList));
       })
       .catch((err) => setError(err.message));
   }, []);
+
+  useEffect(() => {
+    function sync() {
+      const { view: v, nodeId } = readLocation();
+      setView(v);
+      setSelectedNodeId(nodeId);
+    }
+    sync();
+    window.addEventListener('popstate', sync);
+    return () => window.removeEventListener('popstate', sync);
+  }, []);
+
+  function navigateToNode(nodeId) {
+    setView('node');
+    setSelectedNodeId(nodeId);
+    window.history.pushState({ node: nodeId }, '', `?node=${nodeId}`);
+  }
+
+  function navigateToView(nextView) {
+    setView(nextView);
+    setSelectedNodeId(null);
+    window.history.pushState({ view: nextView }, '', nextView === 'map' ? window.location.pathname : `?view=${nextView}`);
+  }
 
   const isDayAverage = dataMode === 'day-average';
   const isTimeLapse = dataMode === 'time-lapse';
@@ -172,7 +211,12 @@ export default function App() {
             ['table', 'Table'],
             ['cameras', 'Cameras'],
           ].map(([key, label]) => (
-            <button key={key} type="button" className={view === key ? 'is-active' : ''} onClick={() => setView(key)}>
+            <button
+              key={key}
+              type="button"
+              className={view === key ? 'is-active' : ''}
+              onClick={() => navigateToView(key)}
+            >
               {label}
             </button>
           ))}
@@ -195,7 +239,7 @@ export default function App() {
             showContours={showContours}
             contourStep={activeField?.contourStep}
             contourUnit={activeField?.unit}
-            onViewHistory={setHistoryStation}
+            onOpenNode={navigateToNode}
           />
           <LayerControls
             dataMode={dataMode}
@@ -222,14 +266,18 @@ export default function App() {
         </div>
       )}
       {stations && view === 'table' && (
-        <TableView stations={stations} readings={currentReadings} onSelectStation={setHistoryStation} />
+        <TableView stations={stations} readings={currentReadings} cameraIds={cameraIds} onOpenNode={navigateToNode} />
       )}
-      {stations && view === 'cameras' && <CameraGallery stations={stations} />}
-      {historyStation && (
-        <HistoryModal
-          stationId={historyStation.id}
-          stationName={historyStation.name}
-          onClose={() => setHistoryStation(null)}
+      {stations && view === 'cameras' && (
+        <CameraGallery stations={stations} cameraIds={cameraIds} onOpenNode={navigateToNode} />
+      )}
+      {stations && view === 'node' && selectedNodeId && (
+        <NodeDetailPage
+          nodeId={selectedNodeId}
+          stations={stations}
+          currentReadings={currentReadings}
+          cameraIds={cameraIds}
+          onBack={() => navigateToView('map')}
         />
       )}
     </div>
