@@ -4,7 +4,11 @@ const INFLUX_DB = 'meter';
 const INFLUX_USER = 'client';
 const INFLUX_PASSWORD = 'pvY6wQNcT8cqDEfZ';
 
-const READINGS_QUERY = `select last(ts) as ts, last(t_raw) as t_raw, last(t_dew) as t_dew, last(p_raw) as p_raw, last(p_sea) as p_sea, last(rh) as rh, last(pm25) as pm25, last(pm10) as pm10, last(gamma_cpm) as gamma_cpm from box where location != 'unknown' and location !~ /^test_/ and time > now() - 2h group by node_id`;
+const FIELD_KEYS = ['t_raw', 't_dew', 'p_raw', 'p_sea', 'rh', 'pm25', 'pm10', 'gamma_cpm'];
+
+const LATEST_QUERY = `select last(ts) as ts, ${FIELD_KEYS.map((k) => `last(${k}) as ${k}`).join(', ')} from box where location != 'unknown' and location !~ /^test_/ and time > now() - 2h group by node_id`;
+
+const DAY_AVERAGE_QUERY = `select ${FIELD_KEYS.map((k) => `mean(${k}) as ${k}`).join(', ')}, count(t_raw) as sample_count from box where location != 'unknown' and location !~ /^test_/ and time > now() - 24h group by node_id`;
 
 // p_raw is the station's raw ambient reading (altitude-dependent, not
 // comparable station-to-station); p_sea is that same reading reduced to
@@ -53,10 +57,10 @@ export async function fetchStations() {
     .filter((s) => s.id && Number.isFinite(s.lat) && Number.isFinite(s.lon));
 }
 
-export async function fetchLatestReadings() {
-  const url = `${INFLUX_QUERY_URL}?db=${INFLUX_DB}&u=${INFLUX_USER}&p=${INFLUX_PASSWORD}&q=${encodeURIComponent(READINGS_QUERY)}`;
+async function runInfluxQuery(query) {
+  const url = `${INFLUX_QUERY_URL}?db=${INFLUX_DB}&u=${INFLUX_USER}&p=${INFLUX_PASSWORD}&q=${encodeURIComponent(query)}`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`Failed to load live readings (${res.status})`);
+  if (!res.ok) throw new Error(`Failed to load readings (${res.status})`);
   const data = await res.json();
   const series = data?.results?.[0]?.series ?? [];
   const byNodeId = new Map();
@@ -70,4 +74,12 @@ export async function fetchLatestReadings() {
     byNodeId.set(nodeId, row);
   }
   return byNodeId;
+}
+
+export function fetchLatestReadings() {
+  return runInfluxQuery(LATEST_QUERY);
+}
+
+export function fetchDayAverageReadings() {
+  return runInfluxQuery(DAY_AVERAGE_QUERY);
 }

@@ -8,6 +8,8 @@ function formatValue(v) {
 }
 
 export default function LayerControls({
+  dataMode,
+  onSelectDataMode,
   selectedParameter,
   onSelectParameter,
   showHeatmap,
@@ -22,6 +24,26 @@ export default function LayerControls({
 
   return (
     <div className="layer-controls">
+      <div className="layer-controls__section">
+        <label>Data</label>
+        <div className="layer-controls__segmented">
+          <button
+            type="button"
+            className={dataMode === 'current' ? 'is-active' : ''}
+            onClick={() => onSelectDataMode('current')}
+          >
+            Current
+          </button>
+          <button
+            type="button"
+            className={dataMode === 'day-average' ? 'is-active' : ''}
+            onClick={() => onSelectDataMode('day-average')}
+          >
+            24h average
+          </button>
+        </div>
+      </div>
+
       <div className="layer-controls__section">
         <label htmlFor="parameter-select">Layer</label>
         <select

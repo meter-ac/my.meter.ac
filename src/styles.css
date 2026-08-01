@@ -91,6 +91,32 @@ body {
   padding: 0.2rem;
 }
 
+.layer-controls__segmented {
+  display: flex;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.layer-controls__segmented button {
+  flex: 1 1 auto;
+  border: none;
+  background: white;
+  padding: 0.3rem 0.4rem;
+  font-size: 0.78rem;
+  cursor: pointer;
+  color: #333;
+}
+
+.layer-controls__segmented button + button {
+  border-left: 1px solid #ccc;
+}
+
+.layer-controls__segmented button.is-active {
+  background: #14324b;
+  color: white;
+}
+
 .layer-controls__checkbox {
   display: flex;
   align-items: center;

@@ -28,7 +28,11 @@ function timeAgo(unixSeconds) {
   return `${hours} h ago`;
 }
 
-function StationPopup({ station, reading }) {
+function formatReading(value) {
+  return Math.round(value * 10) / 10;
+}
+
+function StationPopup({ station, reading, isDayAverage }) {
   const fields = reading
     ? READING_FIELDS.filter((f) => reading[f.key] !== null && reading[f.key] !== undefined)
     : [];
@@ -45,15 +49,17 @@ function StationPopup({ station, reading }) {
               <li key={f.key}>
                 <span>{f.label}</span>
                 <strong>
-                  {reading[f.key]} {f.unit}
+                  {formatReading(reading[f.key])} {f.unit}
                 </strong>
               </li>
             ))}
           </ul>
-          <div className="station-popup__updated">Updated {timeAgo(reading.ts)}</div>
+          <div className="station-popup__updated">
+            {isDayAverage ? `24h average · ${reading.sample_count ?? '?'} samples` : `Updated ${timeAgo(reading.ts)}`}
+          </div>
         </>
       ) : (
-        <div className="station-popup__offline">No recent readings</div>
+        <div className="station-popup__offline">{isDayAverage ? 'No data in last 24h' : 'No recent readings'}</div>
       )}
       <a
         className="station-popup__link"
@@ -70,6 +76,7 @@ function StationPopup({ station, reading }) {
 export default function StationMap({
   stations,
   readings,
+  isDayAverage,
   selectedParameter,
   markerValueKey,
   colorScale,
@@ -111,7 +118,7 @@ export default function StationMap({
         return (
           <Marker key={station.id} position={[station.lat, station.lon]} icon={iconForColor(color)}>
             <Popup>
-              <StationPopup station={station} reading={reading} />
+              <StationPopup station={station} reading={reading} isDayAverage={isDayAverage} />
             </Popup>
           </Marker>
         );

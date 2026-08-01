@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import StationMap from './components/StationMap.jsx';
 import LayerControls from './components/LayerControls.jsx';
-import { fetchStations, fetchLatestReadings, READING_FIELDS } from './api/meterApi.js';
+import { fetchStations, fetchLatestReadings, fetchDayAverageReadings, READING_FIELDS } from './api/meterApi.js';
 import { DERIVED_LAYERS } from './api/derivedLayers.js';
 import { createColorScale } from './color/colorScale.js';
 import { buildValueGrid } from './interpolation/idw.js';
@@ -9,20 +9,26 @@ import { buildAltitudeCorrectedGrid } from './interpolation/altitudeCorrection.j
 
 export default function App() {
   const [stations, setStations] = useState(null);
-  const [readings, setReadings] = useState(new Map());
+  const [currentReadings, setCurrentReadings] = useState(new Map());
+  const [dayAverageReadings, setDayAverageReadings] = useState(new Map());
   const [error, setError] = useState(null);
   const [selectedParameter, setSelectedParameter] = useState(null);
   const [showHeatmap, setShowHeatmap] = useState(false);
   const [showContours, setShowContours] = useState(false);
+  const [dataMode, setDataMode] = useState('current'); // 'current' | 'day-average'
 
   useEffect(() => {
-    Promise.all([fetchStations(), fetchLatestReadings()])
-      .then(([stationList, readingsMap]) => {
+    Promise.all([fetchStations(), fetchLatestReadings(), fetchDayAverageReadings()])
+      .then(([stationList, latest, dayAverage]) => {
         setStations(stationList);
-        setReadings(readingsMap);
+        setCurrentReadings(latest);
+        setDayAverageReadings(dayAverage);
       })
       .catch((err) => setError(err.message));
   }, []);
+
+  const isDayAverage = dataMode === 'day-average';
+  const readings = isDayAverage ? dayAverageReadings : currentReadings;
 
   const derivedLayer = DERIVED_LAYERS[selectedParameter];
   const activeField = READING_FIELDS.find((f) => f.key === selectedParameter) ?? derivedLayer;
@@ -66,7 +72,9 @@ export default function App() {
       <header className="app__header">
         <h1>METER.AC</h1>
         <span className="app__subtitle">
-          {stations ? `${onlineCount} of ${stations.length} stations reporting` : 'Loading stations…'}
+          {stations
+            ? `${onlineCount} of ${stations.length} stations ${isDayAverage ? 'reported in the last 24h' : 'reporting'}`
+            : 'Loading stations…'}
         </span>
       </header>
       {error && <div className="app__error">Failed to load data: {error}</div>}
@@ -75,6 +83,7 @@ export default function App() {
           <StationMap
             stations={stations}
             readings={readings}
+            isDayAverage={isDayAverage}
             selectedParameter={selectedParameter}
             markerValueKey={sourceField}
             colorScale={colorScale}
@@ -85,6 +94,8 @@ export default function App() {
             contourUnit={activeField?.unit}
           />
           <LayerControls
+            dataMode={dataMode}
+            onSelectDataMode={setDataMode}
             selectedParameter={selectedParameter}
             onSelectParameter={setSelectedParameter}
             showHeatmap={showHeatmap}
