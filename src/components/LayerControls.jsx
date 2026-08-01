@@ -1,4 +1,5 @@
 import { READING_FIELDS } from '../api/meterApi.js';
+import { DERIVED_LAYERS } from '../api/derivedLayers.js';
 import { SCALE_STOPS } from '../color/colorScale.js';
 
 function formatValue(v) {
@@ -14,9 +15,10 @@ export default function LayerControls({
   showContours,
   onToggleContours,
   scale,
+  lapseRate,
 }) {
   const gradientCss = `linear-gradient(to right, ${SCALE_STOPS.map(([r, g, b]) => `rgb(${r},${g},${b})`).join(', ')})`;
-  const activeField = READING_FIELDS.find((f) => f.key === selectedParameter);
+  const activeField = READING_FIELDS.find((f) => f.key === selectedParameter) ?? DERIVED_LAYERS[selectedParameter];
 
   return (
     <div className="layer-controls">
@@ -29,6 +31,11 @@ export default function LayerControls({
         >
           <option value="">Station status</option>
           {READING_FIELDS.map((f) => (
+            <option key={f.key} value={f.key}>
+              {f.label}
+            </option>
+          ))}
+          {Object.values(DERIVED_LAYERS).map((f) => (
             <option key={f.key} value={f.key}>
               {f.label}
             </option>
@@ -54,6 +61,12 @@ export default function LayerControls({
             />
             Show contour lines
           </label>
+          {lapseRate && (
+            <div className="layer-controls__note">
+              Lapse rate: {(lapseRate.slope * 1000).toFixed(1)} °C/km
+              {lapseRate.fitted ? ' (fitted)' : ' (standard)'}
+            </div>
+          )}
           <div className="layer-controls__legend">
             <div className="layer-controls__gradient" style={{ background: gradientCss }} />
             <div className="layer-controls__legend-labels">

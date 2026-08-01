@@ -2,8 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import StationMap from './components/StationMap.jsx';
 import LayerControls from './components/LayerControls.jsx';
 import { fetchStations, fetchLatestReadings, READING_FIELDS } from './api/meterApi.js';
+import { DERIVED_LAYERS } from './api/derivedLayers.js';
 import { createColorScale } from './color/colorScale.js';
 import { buildValueGrid } from './interpolation/idw.js';
+import { buildAltitudeCorrectedGrid } from './interpolation/altitudeCorrection.js';
 
 export default function App() {
   const [stations, setStations] = useState(null);
@@ -22,30 +24,41 @@ export default function App() {
       .catch((err) => setError(err.message));
   }, []);
 
+  const derivedLayer = DERIVED_LAYERS[selectedParameter];
+  const activeField = READING_FIELDS.find((f) => f.key === selectedParameter) ?? derivedLayer;
+  // Markers always show the real backend reading, even for a derived layer —
+  // only the interpolated surface/contours reflect the correction.
+  const sourceField = derivedLayer?.sourceField ?? selectedParameter;
+
   const stationPoints = useMemo(() => {
     if (!selectedParameter || !stations) return [];
     const points = [];
     for (const station of stations) {
       const reading = readings.get(station.id);
-      const value = reading ? reading[selectedParameter] : undefined;
+      const value = reading ? reading[sourceField] : undefined;
       if (typeof value === 'number' && Number.isFinite(value)) {
-        points.push({ lat: station.lat, lon: station.lon, value });
+        points.push({ lat: station.lat, lon: station.lon, altitude: station.altitude, value });
       }
     }
     return points;
-  }, [stations, readings, selectedParameter]);
+  }, [stations, readings, sourceField, selectedParameter]);
 
   const colorScale = useMemo(() => {
     if (!selectedParameter) return null;
     return createColorScale(stationPoints.map((p) => p.value));
   }, [selectedParameter, stationPoints]);
 
+  const altitudeCorrected = useMemo(() => {
+    if (!derivedLayer || stationPoints.length === 0) return null;
+    return buildAltitudeCorrectedGrid(stationPoints);
+  }, [derivedLayer, stationPoints]);
+
   const valueGrid = useMemo(() => {
+    if (derivedLayer) return altitudeCorrected?.grid ?? null;
     if (stationPoints.length === 0) return null;
     return buildValueGrid(stationPoints);
-  }, [stationPoints]);
+  }, [derivedLayer, altitudeCorrected, stationPoints]);
 
-  const activeField = READING_FIELDS.find((f) => f.key === selectedParameter);
   const onlineCount = stations ? stations.filter((s) => readings.has(s.id)).length : 0;
 
   return (
@@ -63,6 +76,7 @@ export default function App() {
             stations={stations}
             readings={readings}
             selectedParameter={selectedParameter}
+            markerValueKey={sourceField}
             colorScale={colorScale}
             valueGrid={valueGrid}
             showHeatmap={showHeatmap}
@@ -78,6 +92,7 @@ export default function App() {
             showContours={showContours}
             onToggleContours={setShowContours}
             scale={colorScale}
+            lapseRate={altitudeCorrected?.trend}
           />
         </div>
       )}

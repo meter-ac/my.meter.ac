@@ -71,6 +71,7 @@ export default function StationMap({
   stations,
   readings,
   selectedParameter,
+  markerValueKey,
   colorScale,
   valueGrid,
   showHeatmap,
@@ -100,7 +101,7 @@ export default function StationMap({
         const reading = readings.get(station.id);
         let color = OFFLINE_COLOR;
         if (reading) {
-          const value = selectedParameter ? reading[selectedParameter] : undefined;
+          const value = markerValueKey ? reading[markerValueKey] : undefined;
           if (selectedParameter && colorScale) {
             color = typeof value === 'number' && Number.isFinite(value) ? colorScale.getColor(value) : OFFLINE_COLOR;
           } else if (!selectedParameter) {

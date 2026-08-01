@@ -104,6 +104,12 @@ body {
   border-radius: 3px;
 }
 
+.layer-controls__note {
+  font-size: 0.72rem;
+  color: #555;
+  margin-bottom: 0.4rem;
+}
+
 .layer-controls__legend-labels {
   display: flex;
   justify-content: space-between;
