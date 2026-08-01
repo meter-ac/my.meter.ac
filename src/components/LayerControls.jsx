@@ -1,6 +1,7 @@
 import { READING_FIELDS } from '../api/meterApi.js';
 import { DERIVED_LAYERS } from '../api/derivedLayers.js';
 import { SCALE_STOPS } from '../color/colorScale.js';
+import PlaybackControls from './PlaybackControls.jsx';
 
 function formatValue(v) {
   if (!Number.isFinite(v)) return '–';
@@ -18,9 +19,17 @@ export default function LayerControls({
   onToggleContours,
   scale,
   lapseRate,
+  timeLapseFrames,
+  frameIndex,
+  onFrameIndexChange,
+  isPlaying,
+  onTogglePlaying,
+  isLoadingTimeLapse,
+  timeLapseError,
 }) {
   const gradientCss = `linear-gradient(to right, ${SCALE_STOPS.map(([r, g, b]) => `rgb(${r},${g},${b})`).join(', ')})`;
   const activeField = READING_FIELDS.find((f) => f.key === selectedParameter) ?? DERIVED_LAYERS[selectedParameter];
+  const isTimeLapse = dataMode === 'time-lapse';
 
   return (
     <div className="layer-controls">
@@ -41,6 +50,13 @@ export default function LayerControls({
           >
             24h average
           </button>
+          <button
+            type="button"
+            className={isTimeLapse ? 'is-active' : ''}
+            onClick={() => onSelectDataMode('time-lapse')}
+          >
+            Time lapse
+          </button>
         </div>
       </div>
 
@@ -51,19 +67,32 @@ export default function LayerControls({
           value={selectedParameter ?? ''}
           onChange={(e) => onSelectParameter(e.target.value || null)}
         >
-          <option value="">Station status</option>
+          {!isTimeLapse && <option value="">Station status</option>}
           {READING_FIELDS.map((f) => (
             <option key={f.key} value={f.key}>
               {f.label}
             </option>
           ))}
-          {Object.values(DERIVED_LAYERS).map((f) => (
-            <option key={f.key} value={f.key}>
-              {f.label}
-            </option>
-          ))}
+          {!isTimeLapse &&
+            Object.values(DERIVED_LAYERS).map((f) => (
+              <option key={f.key} value={f.key}>
+                {f.label}
+              </option>
+            ))}
         </select>
       </div>
+
+      {isTimeLapse && (
+        <PlaybackControls
+          frames={timeLapseFrames}
+          frameIndex={frameIndex}
+          onFrameIndexChange={onFrameIndexChange}
+          isPlaying={isPlaying}
+          onTogglePlaying={onTogglePlaying}
+          isLoading={isLoadingTimeLapse}
+          error={timeLapseError}
+        />
+      )}
 
       {selectedParameter && (
         <>

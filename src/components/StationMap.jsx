@@ -32,7 +32,7 @@ function formatReading(value) {
   return Math.round(value * 10) / 10;
 }
 
-function StationPopup({ station, reading, isDayAverage }) {
+function StationPopup({ station, reading, isDayAverage, isTimeLapse }) {
   const fields = reading
     ? READING_FIELDS.filter((f) => reading[f.key] !== null && reading[f.key] !== undefined)
     : [];
@@ -54,12 +54,18 @@ function StationPopup({ station, reading, isDayAverage }) {
               </li>
             ))}
           </ul>
-          <div className="station-popup__updated">
-            {isDayAverage ? `24h average · ${reading.sample_count ?? '?'} samples` : `Updated ${timeAgo(reading.ts)}`}
-          </div>
+          {/* Time-lapse frames share one timestamp across all stations,
+              already shown in the header — no per-station line needed. */}
+          {!isTimeLapse && (
+            <div className="station-popup__updated">
+              {isDayAverage ? `24h average · ${reading.sample_count ?? '?'} samples` : `Updated ${timeAgo(reading.ts)}`}
+            </div>
+          )}
         </>
       ) : (
-        <div className="station-popup__offline">{isDayAverage ? 'No data in last 24h' : 'No recent readings'}</div>
+        <div className="station-popup__offline">
+          {isTimeLapse ? 'No data at this time' : isDayAverage ? 'No data in last 24h' : 'No recent readings'}
+        </div>
       )}
       <a
         className="station-popup__link"
@@ -77,6 +83,7 @@ export default function StationMap({
   stations,
   readings,
   isDayAverage,
+  isTimeLapse,
   selectedParameter,
   markerValueKey,
   colorScale,
@@ -118,7 +125,7 @@ export default function StationMap({
         return (
           <Marker key={station.id} position={[station.lat, station.lon]} icon={iconForColor(color)}>
             <Popup>
-              <StationPopup station={station} reading={reading} isDayAverage={isDayAverage} />
+              <StationPopup station={station} reading={reading} isDayAverage={isDayAverage} isTimeLapse={isTimeLapse} />
             </Popup>
           </Marker>
         );

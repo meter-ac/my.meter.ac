@@ -130,6 +130,46 @@ body {
   border-radius: 3px;
 }
 
+.playback-controls {
+  margin-bottom: 0.6rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #eee;
+}
+
+.playback-controls__row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.playback-controls__play {
+  border: 1px solid #ccc;
+  background: white;
+  border-radius: 4px;
+  width: 1.8rem;
+  height: 1.8rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.playback-controls__scrubber {
+  flex: 1 1 auto;
+}
+
+.playback-controls__time {
+  font-size: 0.72rem;
+  color: #555;
+  margin-top: 0.2rem;
+  text-align: center;
+}
+
+.playback-controls__status {
+  font-size: 0.78rem;
+  color: #555;
+  margin-bottom: 0.5rem;
+}
+
 .layer-controls__note {
   font-size: 0.72rem;
   color: #555;

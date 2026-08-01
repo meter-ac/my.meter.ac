@@ -83,3 +83,39 @@ export function fetchLatestReadings() {
 export function fetchDayAverageReadings() {
   return runInfluxQuery(DAY_AVERAGE_QUERY);
 }
+
+const TIME_LAPSE_HOURS = 24;
+const TIME_LAPSE_BUCKET_MINUTES = 30;
+
+// One parameter's 24h history, bucketed into 30-min frames — fetched on
+// demand for whichever parameter is being animated, not preloaded for all 8
+// (a single parameter is already ~270KB/49 frames; all 8 would be ~2MB).
+// Frame reading objects deliberately have the same {[parameterKey]: value}
+// shape as the other fetchers' rows, so every existing `reading[key]` call
+// site (marker coloring, popup field list) works unchanged on a time-lapse
+// frame without special-casing.
+export async function fetchParameterTimeSeries(parameterKey) {
+  const query = `select mean(${parameterKey}) as ${parameterKey} from box where location != 'unknown' and location !~ /^test_/ and time > now() - ${TIME_LAPSE_HOURS}h group by node_id, time(${TIME_LAPSE_BUCKET_MINUTES}m) fill(none)`;
+  const url = `${INFLUX_QUERY_URL}?db=${INFLUX_DB}&u=${INFLUX_USER}&p=${INFLUX_PASSWORD}&q=${encodeURIComponent(query)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Failed to load time series (${res.status})`);
+  const data = await res.json();
+  const series = data?.results?.[0]?.series ?? [];
+
+  const timestamps = Array.from(new Set(series.flatMap((s) => s.values.map((row) => row[0])))).sort();
+  const frameIndexByTimestamp = new Map(timestamps.map((t, i) => [t, i]));
+  const frames = timestamps.map((timestamp) => ({ timestamp, readings: new Map() }));
+
+  for (const s of series) {
+    const nodeId = s.tags?.node_id;
+    if (!nodeId) continue;
+    const valueIdx = s.columns.indexOf(parameterKey);
+    for (const row of s.values) {
+      const value = row[valueIdx];
+      if (value === null || value === undefined) continue;
+      frames[frameIndexByTimestamp.get(row[0])].readings.set(nodeId, { [parameterKey]: value });
+    }
+  }
+
+  return frames;
+}
