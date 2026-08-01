@@ -1,3 +1,5 @@
+import { parseCsv } from '../utils/csv.js';
+
 const NODES_CSV_URL = 'https://meter.ac/gs/metadata/nodes.csv';
 const NODES_TXT_URL = 'https://meter.ac/gs/nodes/nodes.txt';
 const INFLUX_QUERY_URL = 'https://meter.uni-plovdiv.net/query';
@@ -39,19 +41,6 @@ export const READING_FIELDS = [
   { key: 'pm10', label: 'PM10', unit: 'µg/m³', contourStep: 20 },
   { key: 'gamma_cpm', label: 'Radiation', unit: 'CPM', contourStep: 10 },
 ];
-
-function parseCsv(text) {
-  const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
-  const header = lines[0].split(',');
-  return lines.slice(1).map((line) => {
-    const cells = line.split(',');
-    const row = {};
-    header.forEach((col, i) => {
-      row[col] = cells[i];
-    });
-    return row;
-  });
-}
 
 export async function fetchStations() {
   const res = await fetch(NODES_CSV_URL);

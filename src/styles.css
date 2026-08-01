@@ -433,12 +433,41 @@ body {
 }
 
 /* Table view */
-.table-view {
+.table-view-container {
   flex: 1 1 auto;
   overflow: hidden;
   display: flex;
   flex-direction: column;
   padding: 0.75rem 1rem;
+}
+
+.table-view__categories {
+  align-self: flex-start;
+  margin-bottom: 0.6rem;
+}
+
+.table-view__status {
+  font-size: 0.85rem;
+  color: #555;
+  padding: 1rem 0;
+}
+
+.table-view__note {
+  font-size: 0.78rem;
+  color: #a05a00;
+  background: #fff6e8;
+  border: 1px solid #f0d9ad;
+  border-radius: 4px;
+  padding: 0.4rem 0.6rem;
+  margin-bottom: 0.6rem;
+  max-width: 560px;
+}
+
+.table-view {
+  flex: 1 1 auto;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .table-view__filter {
