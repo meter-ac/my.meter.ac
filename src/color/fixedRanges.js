@@ -14,9 +14,18 @@
 // mountain station always read "low pressure" regardless of actual weather;
 // only p_sea (reduced to sea level) is the physically comparable quantity
 // synoptic maps color-code.
+//
+// gamma_cpm is raw Geiger-tube counts, not a calibrated dose rate — there's
+// no known CPM→µSv/h conversion factor for this hardware, so this
+// deliberately stays in CPM rather than guessing a conversion and inventing
+// a µSv/h health scale. 0-200 matches the 0-200 CPM dial meter.ac's own
+// gauge.js already uses for this exact field, whose 0-70 band it highlights
+// as the normal/background range — reusing the project's own established
+// convention rather than a value invented for this rewrite.
 export const FIXED_RANGES = {
   t_raw: { min: -30, max: 45 },
   p_sea: { min: 970, max: 1050 },
+  gamma_cpm: { min: 0, max: 200 },
 };
 
 export function fixedRangeFor(parameterKey) {
