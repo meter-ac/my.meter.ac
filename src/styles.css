@@ -477,7 +477,8 @@ body {
   padding: 0.75rem 1rem;
 }
 
-.table-view__categories {
+.table-view__categories,
+.overview-view__categories {
   align-self: flex-start;
   margin-bottom: 0.75rem;
   border-color: #9fadb8;
@@ -486,18 +487,21 @@ body {
 /* .layer-controls__segmented's white-on-white default only reads on the
    map's floating white panel (shadow gives it edges) — on the plain page
    background here it needs its own visible chrome. */
-.table-view__categories button {
+.table-view__categories button,
+.overview-view__categories button {
   background: #eef1f4;
   color: #14324b;
   padding: 0.4rem 0.9rem;
   font-size: 0.82rem;
 }
 
-.table-view__categories button + button {
+.table-view__categories button + button,
+.overview-view__categories button + button {
   border-left-color: #9fadb8;
 }
 
-.table-view__categories button.is-active {
+.table-view__categories button.is-active,
+.overview-view__categories button.is-active {
   background: #14324b;
   color: white;
 }
@@ -824,6 +828,79 @@ body {
 .about-page__list--citations li {
   line-height: 1.5;
   color: #333;
+}
+
+/* Summary panels (NIMH / Earthquakes boxplot) */
+.summary-panel__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
+.summary-panel select {
+  font-size: 0.85rem;
+  padding: 0.25rem;
+}
+
+.summary-panel__period,
+.summary-panel__stat {
+  width: auto;
+  display: inline-flex;
+}
+
+.summary-panel__period button,
+.summary-panel__stat button {
+  flex: 0 0 auto;
+  padding: 0.3rem 0.55rem;
+}
+
+.summary-panel__status {
+  font-size: 0.85rem;
+  color: #555;
+  padding: 0.5rem 0;
+}
+
+/* Box-and-whisker chart */
+.boxplot-chart__scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.boxplot-chart__whisker {
+  stroke: #789;
+  stroke-width: 1;
+}
+
+.boxplot-chart__box {
+  fill: #7fa8c9;
+  stroke: #1a5f8c;
+  stroke-width: 1;
+}
+
+.boxplot-chart__box.is-hovered {
+  fill: #ffb648;
+  stroke: #a06a00;
+}
+
+.boxplot-chart__median {
+  stroke: #14324b;
+  stroke-width: 1.5;
+}
+
+.boxplot-chart__tooltip {
+  font-size: 0.8rem;
+  color: #444;
+  margin-top: 0.4rem;
+  min-height: 1.2em;
+}
+
+.boxplot-chart__status {
+  font-size: 0.85rem;
+  color: #888;
+  padding: 2rem 0;
+  text-align: center;
 }
 
 @media (max-width: 480px) {

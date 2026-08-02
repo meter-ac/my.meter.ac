@@ -1,13 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { READING_FIELDS, fetchDailyMinMax } from '../api/meterApi.js';
-import { createColorScale, SCALE_STOPS } from '../color/colorScale.js';
+import { createColorScale } from '../color/colorScale.js';
 import { stationMatchesRegion, REGIONS } from '../utils/regions.js';
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-const CELL = 11;
-const CELL_GAP = 2;
-const MONTH_LABEL_HEIGHT = 14;
-const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+import { buildCalendarGridLayout } from '../utils/calendarLayout.js';
+import CalendarGrid from './CalendarGrid.jsx';
 
 // Wide scopes (all stations, or a whole region) get pricier the longer the
 // period — verified live: whole-network 365d is ~4.8s, 1000d balloons to
@@ -25,83 +21,10 @@ const SINGLE_STATION_PERIODS = [
   { label: 'All-time', days: 3000 },
 ];
 
-function startOfWeek(date) {
-  const d = new Date(date);
-  d.setUTCDate(d.getUTCDate() - d.getUTCDay());
-  d.setUTCHours(0, 0, 0, 0);
-  return d;
-}
-
-function formatDate(dateStr) {
-  return new Date(`${dateStr}T00:00:00Z`).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    timeZone: 'UTC',
-  });
-}
-
 function parseScope(value) {
   if (value.startsWith('region:')) return { type: 'region', region: value.slice(7) };
   if (value.startsWith('station:')) return { type: 'station', stationId: value.slice(8) };
   return { type: 'all' };
-}
-
-const GRADIENT_CSS = `linear-gradient(to right, ${SCALE_STOPS.map(([r, g, b]) => `rgb(${r},${g},${b})`).join(', ')})`;
-
-function MiniCalendarGrid({ title, cells, weeks, monthLabels, colorScale, unit, valueOf }) {
-  const [hoveredDate, setHoveredDate] = useState(null);
-  const width = weeks * (CELL + CELL_GAP);
-  const height = 7 * (CELL + CELL_GAP);
-  const hovered = hoveredDate ? cells.find((c) => c.dateStr === hoveredDate) : null;
-
-  return (
-    <div className="calendar-heatmap__grid">
-      <div className="calendar-heatmap__grid-title">{title}</div>
-      <div className="calendar-heatmap__scroll">
-        <svg
-          viewBox={`0 0 ${width} ${height + MONTH_LABEL_HEIGHT}`}
-          width={width}
-          height={height + MONTH_LABEL_HEIGHT}
-          onMouseLeave={() => setHoveredDate(null)}
-        >
-          {monthLabels.map((m) => (
-            <text key={m.week} x={m.week * (CELL + CELL_GAP)} y={10} className="calendar-heatmap__month-label">
-              {m.label}
-            </text>
-          ))}
-          {cells.map((c) => (
-            <rect
-              key={c.dateStr}
-              x={c.week * (CELL + CELL_GAP)}
-              y={MONTH_LABEL_HEIGHT + c.dayOfWeek * (CELL + CELL_GAP)}
-              width={CELL}
-              height={CELL}
-              rx={2}
-              fill={colorScale.getColor(valueOf(c))}
-              onMouseEnter={() => setHoveredDate(c.dateStr)}
-            />
-          ))}
-        </svg>
-      </div>
-      <div className="calendar-heatmap__tooltip">
-        {hovered
-          ? `${formatDate(hovered.dateStr)} — ${Math.round(valueOf(hovered) * 10) / 10} ${unit}`
-          : 'Hover a day for its value'}
-      </div>
-      <div className="calendar-heatmap__legend">
-        <div className="layer-controls__gradient calendar-heatmap__gradient" style={{ background: GRADIENT_CSS }} />
-        <div className="calendar-heatmap__legend-labels">
-          <span>
-            {Math.round(colorScale.min * 10) / 10} {unit}
-          </span>
-          <span>
-            {Math.round(colorScale.max * 10) / 10} {unit}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 export default function CalendarHeatmap({ stations }) {
@@ -149,27 +72,7 @@ export default function CalendarHeatmap({ stations }) {
   }, [fieldKey, periodDays, nodeIds]);
 
   const activeField = READING_FIELDS.find((f) => f.key === fieldKey);
-
-  const gridLayout = useMemo(() => {
-    if (!rows || rows.length === 0) return null;
-    const gridStart = startOfWeek(`${rows[0].date}T00:00:00Z`);
-    let lastMonth = null;
-    const monthLabels = [];
-    const cells = rows.map((r) => {
-      const date = new Date(`${r.date}T00:00:00Z`);
-      const dayOffset = Math.round((date.getTime() - gridStart.getTime()) / DAY_MS);
-      const week = Math.floor(dayOffset / 7);
-      const month = date.getUTCMonth();
-      if (month !== lastMonth) {
-        monthLabels.push({ week, label: MONTH_NAMES[month] });
-        lastMonth = month;
-      }
-      return { dateStr: r.date, min: r.min, max: r.max, week, dayOfWeek: dayOffset % 7 };
-    });
-    const weeks = Math.max(...cells.map((c) => c.week)) + 1;
-    return { cells, weeks, monthLabels };
-  }, [rows]);
-
+  const gridLayout = useMemo(() => buildCalendarGridLayout(rows), [rows]);
   const lowScale = useMemo(() => (rows ? createColorScale(rows.map((r) => r.min)) : null), [rows]);
   const highScale = useMemo(() => (rows ? createColorScale(rows.map((r) => r.max)) : null), [rows]);
 
@@ -221,7 +124,7 @@ export default function CalendarHeatmap({ stations }) {
 
       {gridLayout && lowScale && highScale && (
         <div className="calendar-heatmap__grids">
-          <MiniCalendarGrid
+          <CalendarGrid
             title="Daily low (avg)"
             cells={gridLayout.cells}
             weeks={gridLayout.weeks}
@@ -230,7 +133,7 @@ export default function CalendarHeatmap({ stations }) {
             unit={activeField.unit}
             valueOf={(c) => c.min}
           />
-          <MiniCalendarGrid
+          <CalendarGrid
             title="Daily high (avg)"
             cells={gridLayout.cells}
             weeks={gridLayout.weeks}
