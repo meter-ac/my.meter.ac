@@ -5,6 +5,7 @@ import TableView from './components/TableView.jsx';
 import CameraGallery from './components/CameraGallery.jsx';
 import NodeDetailPage from './components/NodeDetailPage.jsx';
 import OverviewView from './components/OverviewView.jsx';
+import AboutPage from './components/AboutPage.jsx';
 import {
   fetchStations,
   fetchLatestReadings,
@@ -28,7 +29,7 @@ function formatFrameTime(isoString) {
   });
 }
 
-const TAB_VIEWS = ['map', 'table', 'cameras', 'overview'];
+const TAB_VIEWS = ['map', 'table', 'cameras', 'overview', 'about'];
 
 // No router dependency — just enough history/URL syncing to give each node
 // its own shareable/bookmarkable link (?node=ID) and make browser back/
@@ -230,6 +231,7 @@ export default function App() {
             ['table', 'Table'],
             ['cameras', 'Cameras'],
             ['overview', 'Overview'],
+            ['about', 'About'],
           ].map(([key, label]) => (
             <button
               key={key}
@@ -303,6 +305,7 @@ export default function App() {
       {stations && view === 'overview' && (
         <OverviewView stations={stations} currentReadings={currentReadings} onOpenNode={navigateToNode} />
       )}
+      {view === 'about' && <AboutPage />}
       {stations && view === 'node' && selectedNodeId && (
         <NodeDetailPage
           nodeId={selectedNodeId}

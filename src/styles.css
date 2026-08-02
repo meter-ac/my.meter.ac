@@ -776,6 +776,56 @@ body {
   margin-top: 0.15rem;
 }
 
+/* About page */
+.about-page {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 1rem 1.25rem 2rem;
+  max-width: 760px;
+}
+
+.about-page__section {
+  margin-bottom: 1.75rem;
+}
+
+.about-page__section h2 {
+  font-size: 1.05rem;
+  margin: 0 0 0.5rem;
+}
+
+.about-page__section h3 {
+  font-size: 0.9rem;
+  margin: 1rem 0 0.4rem;
+}
+
+.about-page__section p {
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: #333;
+  margin: 0 0 0.75rem;
+}
+
+.about-page__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.about-page__list li {
+  font-size: 0.85rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.about-page__list a {
+  color: #1a5f8c;
+}
+
+.about-page__list--citations li {
+  line-height: 1.5;
+  color: #333;
+}
+
 @media (max-width: 480px) {
   .app__header {
     flex-direction: column;
