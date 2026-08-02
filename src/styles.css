@@ -830,6 +830,13 @@ body {
   color: #333;
 }
 
+.about-page__license {
+  background: #eef1f4;
+  border-left: 3px solid #14324b;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0 4px 4px 0;
+}
+
 /* Summary panels (NIMH / Earthquakes boxplot) */
 .summary-panel__controls {
   display: flex;

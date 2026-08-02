@@ -146,15 +146,19 @@ export default function AboutPage() {
           <a href="https://en.wikipedia.org/wiki/FAIR_data" target="_blank" rel="noreferrer">
             FAIR data
           </a>{' '}
-          principles. Raw measurement data and derived statistics are freely accessible under the{' '}
+          principles.
+        </p>
+        <p className="about-page__license">
+          <strong>Data license:</strong> all raw measurements and derived statistics published on this site are
+          dedicated to the public domain under{' '}
           <a href="http://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noreferrer">
             CC0
           </a>{' '}
-          license — see the{' '}
+          — no permission needed, no attribution required. See the{' '}
           <a href="https://meter.ac/gs/metadata" target="_blank" rel="noreferrer">
             raw metadata
-          </a>
-          .
+          </a>{' '}
+          for machine-readable dataset descriptions.
         </p>
       </section>
 
@@ -174,6 +178,11 @@ export default function AboutPage() {
           <li>
             <a href="https://t.me/meter_ac" target="_blank" rel="noreferrer">
               Telegram
+            </a>
+          </li>
+          <li>
+            <a href="https://www.facebook.com/meter.ac" target="_blank" rel="noreferrer">
+              Facebook
             </a>
           </li>
         </ul>
