@@ -2,7 +2,7 @@
 
 A map-first web frontend for [METER.AC](https://meter.ac), an open atmospheric
 monitoring network. This project is a proof-of-concept **replacement for
-[github.com/vedina/meter.ac](https://github.com/vedina/meter.ac)** — richer
+[github.com/meter-ac/ui](https://github.com/meter-ac/ui)** — richer
 visualization (interactive map, spatial interpolation, time-lapse, calendar
 trends, a real per-station page) on the same public data the existing site
 already uses. See [AGENTS.md](./AGENTS.md) for the full architecture and data-
