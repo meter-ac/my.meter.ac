@@ -1,4 +1,4 @@
-import { READING_FIELDS } from '../api/meterApi.js';
+import { READING_FIELDS, isCameraOnline } from '../api/meterApi.js';
 import { timeAgo, formatReading } from '../utils/format.js';
 import NodeHistoryPanel from './NodeHistoryPanel.jsx';
 
@@ -7,6 +7,7 @@ export default function NodeDetailPage({
   stations,
   currentReadings,
   cameraIds,
+  cameraLastSeen,
   onBack,
   isFavorite,
   onToggleFavorite,
@@ -14,6 +15,8 @@ export default function NodeDetailPage({
   const station = stations.find((s) => s.id === nodeId);
   const reading = currentReadings.get(nodeId);
   const hasCamera = cameraIds.has(nodeId);
+  const cameraSeenAt = cameraLastSeen?.get(nodeId);
+  const cameraOnline = isCameraOnline(cameraSeenAt);
 
   if (!station) {
     return (
@@ -77,8 +80,15 @@ export default function NodeDetailPage({
       {hasCamera && (
         <div className="node-page__section">
           <h2>Camera</h2>
+          {!cameraOnline && (
+            <div className="node-page__camera-offline">
+              ⚠ No recent snapshot
+              {cameraSeenAt ? ` — last seen ${timeAgo(cameraSeenAt.getTime() / 1000)}` : ''}. Showing the last image
+              received.
+            </div>
+          )}
           <img
-            className="node-page__camera-image"
+            className={cameraOnline ? 'node-page__camera-image' : 'node-page__camera-image node-page__camera-image--offline'}
             src={`https://meter.ac/gs/nodes/${nodeId}/snap.jpg?t=${Math.floor(Date.now() / 60000)}`}
             alt={`Latest snapshot from ${station.name}`}
           />

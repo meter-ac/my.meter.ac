@@ -74,7 +74,9 @@ export default function EarthquakeSummary() {
       {items && items.length === 0 && (
         <div className="summary-panel__status">No earthquakes recorded in this period.</div>
       )}
-      {items && items.length > 0 && <BoxPlotChart items={items} unit={activeStat.unit} />}
+      {items && items.length > 0 && (
+        <BoxPlotChart items={items} unit={activeStat.unit} invertY={statKey === 'depth'} />
+      )}
     </div>
   );
 }

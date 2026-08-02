@@ -191,3 +191,31 @@ export async function fetchCameraNodeIds() {
     .split(/\s+/)
     .filter(Boolean);
 }
+
+// A camera having a "cams" flag doesn't mean it's currently working — some
+// snapshot files are years stale but still serve a 200 (last frame the
+// camera ever produced). The static file server sends Last-Modified on
+// snap.jpg with open CORS, so a plain HEAD request per camera is enough to
+// tell a live feed from an abandoned one, no InfluxDB involved. Verified
+// live: freshness is sharply bimodal (cameras are either updated within the
+// last hour, or stale by weeks-to-years) — no meaningful middle ground.
+export const CAMERA_STALE_HOURS = 24;
+
+export async function fetchCameraLastSeen(cameraIds) {
+  const entries = await Promise.all(
+    Array.from(cameraIds).map(async (id) => {
+      try {
+        const res = await fetch(`https://meter.ac/gs/nodes/${id}/snap.jpg`, { method: 'HEAD' });
+        const lastModified = res.ok ? res.headers.get('Last-Modified') : null;
+        return [id, lastModified ? new Date(lastModified) : null];
+      } catch {
+        return [id, null];
+      }
+    }),
+  );
+  return new Map(entries);
+}
+
+export function isCameraOnline(lastSeen) {
+  return lastSeen instanceof Date && Date.now() - lastSeen.getTime() < CAMERA_STALE_HOURS * 60 * 60 * 1000;
+}

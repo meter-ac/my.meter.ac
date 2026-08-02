@@ -12,6 +12,7 @@ import {
   fetchDayAverageReadings,
   fetchParameterTimeSeries,
   fetchCameraNodeIds,
+  fetchCameraLastSeen,
   READING_FIELDS,
 } from './api/meterApi.js';
 import { DERIVED_LAYERS } from './api/derivedLayers.js';
@@ -53,6 +54,7 @@ export default function App() {
   const [currentReadings, setCurrentReadings] = useState(new Map());
   const [dayAverageReadings, setDayAverageReadings] = useState(new Map());
   const [cameraIds, setCameraIds] = useState(new Set());
+  const [cameraLastSeen, setCameraLastSeen] = useState(new Map());
   const [error, setError] = useState(null);
   const [selectedParameter, setSelectedParameter] = useState(null);
   const [showHeatmap, setShowHeatmap] = useState(false);
@@ -76,6 +78,11 @@ export default function App() {
         setCurrentReadings(latest);
         setDayAverageReadings(dayAverage);
         setCameraIds(new Set(cameraList));
+        // Separate, non-blocking: each camera's own liveness (HEAD +
+        // Last-Modified) shouldn't hold up everything else rendering.
+        fetchCameraLastSeen(cameraList)
+          .then(setCameraLastSeen)
+          .catch(() => {});
       })
       .catch((err) => setError(err.message));
   }, []);
@@ -297,10 +304,21 @@ export default function App() {
         </div>
       )}
       {stations && view === 'table' && (
-        <TableView stations={stations} readings={currentReadings} cameraIds={cameraIds} onOpenNode={navigateToNode} />
+        <TableView
+          stations={stations}
+          readings={currentReadings}
+          cameraIds={cameraIds}
+          cameraLastSeen={cameraLastSeen}
+          onOpenNode={navigateToNode}
+        />
       )}
       {stations && view === 'cameras' && (
-        <CameraGallery stations={stations} cameraIds={cameraIds} onOpenNode={navigateToNode} />
+        <CameraGallery
+          stations={stations}
+          cameraIds={cameraIds}
+          cameraLastSeen={cameraLastSeen}
+          onOpenNode={navigateToNode}
+        />
       )}
       {stations && view === 'overview' && (
         <OverviewView stations={stations} currentReadings={currentReadings} onOpenNode={navigateToNode} />
@@ -312,6 +330,7 @@ export default function App() {
           stations={stations}
           currentReadings={currentReadings}
           cameraIds={cameraIds}
+          cameraLastSeen={cameraLastSeen}
           onBack={() => navigateToView('map')}
           isFavorite={favoriteStationId === selectedNodeId}
           onToggleFavorite={toggleFavorite}

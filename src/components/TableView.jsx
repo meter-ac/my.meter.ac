@@ -30,7 +30,7 @@ async function loadCategory(category) {
   return null;
 }
 
-export default function TableView({ stations, readings, cameraIds, onOpenNode }) {
+export default function TableView({ stations, readings, cameraIds, cameraLastSeen, onOpenNode }) {
   const [category, setCategory] = useState('nodes');
   const [cache, setCache] = useState({});
   const [loading, setLoading] = useState(false);
@@ -84,6 +84,7 @@ export default function TableView({ stations, readings, cameraIds, onOpenNode })
           readings={readings}
           fields={READING_FIELDS}
           cameraIds={cameraIds}
+          cameraLastSeen={cameraLastSeen}
           onOpenNode={onOpenNode}
         />
       )}

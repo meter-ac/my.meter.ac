@@ -12,8 +12,10 @@ function round1(v) {
 
 // Hand-rolled box-and-whisker chart — one column per category (station/
 // region), min-max whisker + q1-q3 box + median line. Horizontally
-// scrollable for the 40+ categories NIMH/Earthquakes have.
-export default function BoxPlotChart({ items, unit }) {
+// scrollable for the 40+ categories NIMH/Earthquakes have. invertY flips the
+// value axis (small at top, large at bottom) for quantities like depth where
+// that reads as a physical cross-section instead of a normal chart.
+export default function BoxPlotChart({ items, unit, invertY = false }) {
   const [hoverIndex, setHoverIndex] = useState(null);
 
   const { width, innerHeight, yFor, hLines } = useMemo(() => {
@@ -28,10 +30,12 @@ export default function BoxPlotChart({ items, unit }) {
     const pad = (max - min) * 0.08;
     min -= pad;
     max += pad;
-    const yForValue = (v) => PADDING.top + innerH - ((v - min) / (max - min)) * innerH;
+    const yForValue = invertY
+      ? (v) => PADDING.top + ((v - min) / (max - min)) * innerH
+      : (v) => PADDING.top + innerH - ((v - min) / (max - min)) * innerH;
     const lines = Array.from({ length: H_TICKS + 1 }, (_, i) => {
       const t = i / H_TICKS;
-      return { y: PADDING.top + t * innerH, value: max - t * (max - min) };
+      return { y: PADDING.top + t * innerH, value: invertY ? min + t * (max - min) : max - t * (max - min) };
     });
     return {
       width: items.length * COLUMN_WIDTH + PADDING.left + PADDING.right,
@@ -39,7 +43,7 @@ export default function BoxPlotChart({ items, unit }) {
       yFor: yForValue,
       hLines: lines,
     };
-  }, [items]);
+  }, [items, invertY]);
 
   if (items.length === 0) {
     return <div className="boxplot-chart__status">No data for this selection</div>;
@@ -56,6 +60,7 @@ export default function BoxPlotChart({ items, unit }) {
               <line x1={PADDING.left} x2={width - PADDING.right} y1={h.y} y2={h.y} className="history-chart__gridline" />
               <text x={PADDING.left - 6} y={h.y + 3} textAnchor="end" className="history-chart__axis-label">
                 {round1(h.value)}
+                {unit ? ` ${unit}` : ''}
               </text>
             </g>
           ))}

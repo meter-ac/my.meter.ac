@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { timeAgo, formatReading } from '../utils/format.js';
+import { isCameraOnline } from '../api/meterApi.js';
 
 // Generic sortable/filterable station table, used for Nodes, Meteo, and
 // Earth — they're all "stations with a current reading," just different
@@ -11,7 +12,7 @@ import { timeAgo, formatReading } from '../utils/format.js';
 // history chart on meter.ac (confirmed live: .../gs/meteo/{id}/history.html
 // and .../gs/earth/{id}/history.html both work, unlike gauge.html which 404s
 // for those two networks).
-export default function StationTable({ stations, readings, fields, cameraIds, onOpenNode, externalLinkFor }) {
+export default function StationTable({ stations, readings, fields, cameraIds, cameraLastSeen, onOpenNode, externalLinkFor }) {
   const [sortKey, setSortKey] = useState('name');
   const [sortDir, setSortDir] = useState(1);
   const [filterText, setFilterText] = useState('');
@@ -22,12 +23,18 @@ export default function StationTable({ stations, readings, fields, cameraIds, on
       { key: 'id', label: 'ID', getValue: (row) => row.id },
       { key: 'ts', label: 'Status', getValue: (row) => row.ts ?? -1 },
     ];
-    if (cameraIds) cols.push({ key: 'camera', label: 'Cam', getValue: (row) => (cameraIds.has(row.id) ? 1 : 0) });
+    if (cameraIds) {
+      cols.push({
+        key: 'camera',
+        label: 'Cam',
+        getValue: (row) => (!cameraIds.has(row.id) ? 0 : isCameraOnline(cameraLastSeen?.get(row.id)) ? 2 : 1),
+      });
+    }
     if (externalLinkFor) cols.push({ key: 'link', label: 'Chart', getValue: () => 0 });
     cols.push({ key: 'altitude', label: 'Alt. [m]', getValue: (row) => row.altitude });
     cols.push(...fields.map((f) => ({ key: f.key, label: `${f.label} [${f.unit}]`, getValue: (row) => row[f.key] })));
     return cols;
-  }, [fields, cameraIds, externalLinkFor]);
+  }, [fields, cameraIds, cameraLastSeen, externalLinkFor]);
 
   const rows = useMemo(() => {
     return stations.map((station) => ({ ...station, ...(readings.get(station.id) ?? {}) }));
@@ -92,7 +99,25 @@ export default function StationTable({ stations, readings, fields, cameraIds, on
                   )}{' '}
                   {row.ts ? timeAgo(row.ts) : 'no data'}
                 </td>
-                {cameraIds && <td>{cameraIds.has(row.id) ? '📷' : ''}</td>}
+                {cameraIds && (
+                  <td>
+                    {cameraIds.has(row.id) &&
+                      (isCameraOnline(cameraLastSeen?.get(row.id)) ? (
+                        <span title="Camera online">📷</span>
+                      ) : (
+                        <span
+                          className="camera-icon--offline"
+                          title={
+                            cameraLastSeen?.get(row.id)
+                              ? `Camera offline · last seen ${timeAgo(cameraLastSeen.get(row.id).getTime() / 1000)}`
+                              : 'Camera offline'
+                          }
+                        >
+                          📷
+                        </span>
+                      ))}
+                  </td>
+                )}
                 {externalLinkFor && (
                   <td>
                     <a
