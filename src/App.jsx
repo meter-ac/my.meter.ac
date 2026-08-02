@@ -16,8 +16,9 @@ import {
   READING_FIELDS,
 } from './api/meterApi.js';
 import { DERIVED_LAYERS } from './api/derivedLayers.js';
-import { createColorScale } from './color/colorScale.js';
+import { createColorScale, createFixedColorScale } from './color/colorScale.js';
 import { isAqiParameter, createAqiColorScale } from './color/aqiScale.js';
+import { fixedRangeFor } from './color/fixedRanges.js';
 import { buildValueGrid } from './interpolation/idw.js';
 import { buildAltitudeCorrectedGrid } from './interpolation/altitudeCorrection.js';
 import { getFavoriteStation, setFavoriteStation, clearFavoriteStation } from './utils/favoriteStation.js';
@@ -197,15 +198,21 @@ export default function App() {
     return createColorScale(stationPoints.map((p) => p.value));
   }, [selectedParameter, stationPoints, isTimeLapse, timeLapseFrames]);
 
-  // PM2.5/PM10 have official EAQI health-threshold bands, so their marker/
-  // heatmap/legend colors come from fixed concentration cutoffs instead of
-  // this dataset's own min/max — a uniformly "moderate" day shouldn't still
-  // paint blue-to-red just because that's today's spread.
+  // PM2.5/PM10 have official EAQI health-threshold bands, and temperature
+  // gets a fixed -30…45°C anchor (standard weather-map convention) — both so
+  // their marker/heatmap/legend colors reflect the actual reading instead of
+  // this dataset's own min/max, where a uniformly mild/moderate day would
+  // otherwise still paint blue-to-red just because that's today's spread.
+  // Checked against sourceField (not selectedParameter) so the
+  // altitude-corrected temperature layer — same °C quantity, different
+  // interpolation — gets the same fixed anchor as raw temperature.
   const colorScale = useMemo(() => {
     if (!selectedParameter) return null;
-    if (isAqiParameter(selectedParameter)) return createAqiColorScale(selectedParameter);
+    if (isAqiParameter(sourceField)) return createAqiColorScale(sourceField);
+    const fixedRange = fixedRangeFor(sourceField);
+    if (fixedRange) return createFixedColorScale(fixedRange.min, fixedRange.max);
     return valueRange;
-  }, [selectedParameter, valueRange]);
+  }, [selectedParameter, sourceField, valueRange]);
 
   const altitudeCorrected = useMemo(() => {
     if (!derivedLayer || stationPoints.length === 0) return null;

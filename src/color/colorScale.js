@@ -61,4 +61,18 @@ export function createColorScale(values) {
   return { min, max, getColor, getColorForValue };
 }
 
+// Same blue→red ramp as createColorScale, but anchored to a fixed domain
+// instead of this dataset's own spread — for parameters (temperature) where
+// a uniformly mild/cold day shouldn't still get stretched blue-to-red just
+// because that's today's range. See color/fixedRanges.js for the anchors.
+export function createFixedColorScale(min, max) {
+  const span = max - min || 1;
+  const getColorForValue = (value) => colorAt((value - min) / span);
+  const getColor = (value) => {
+    const [r, g, b] = getColorForValue(value);
+    return `rgb(${r},${g},${b})`;
+  };
+  return { min, max, getColor, getColorForValue };
+}
+
 export const SCALE_STOPS = STOPS;
