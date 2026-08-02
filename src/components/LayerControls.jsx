@@ -118,17 +118,40 @@ export default function LayerControls({
               {lapseRate.fitted ? ' (fitted)' : ' (standard)'}
             </div>
           )}
-          <div className="layer-controls__legend">
-            <div className="layer-controls__gradient" style={{ background: gradientCss }} />
-            <div className="layer-controls__legend-labels">
-              <span>
-                {formatValue(scale?.min)} {activeField?.unit}
-              </span>
-              <span>
-                {formatValue(scale?.max)} {activeField?.unit}
-              </span>
+          {scale?.bands ? (
+            <div className="layer-controls__legend layer-controls__legend--bands">
+              {scale.bands.map((band, i) => {
+                const prevMax = i === 0 ? 0 : scale.bands[i - 1].max;
+                const rangeText =
+                  band.max === Infinity ? `>${prevMax}` : i === 0 ? `0–${band.max}` : `${prevMax}–${band.max}`;
+                return (
+                  <div key={band.label} className="layer-controls__band-row">
+                    <span
+                      className="layer-controls__band-swatch"
+                      style={{ background: `rgb(${band.color.join(',')})` }}
+                    />
+                    <span className="layer-controls__band-label">{band.label}</span>
+                    <span className="layer-controls__band-range">
+                      {rangeText} {activeField?.unit}
+                    </span>
+                  </div>
+                );
+              })}
+              <div className="layer-controls__note">EU Air Quality Index (24h mean)</div>
             </div>
-          </div>
+          ) : (
+            <div className="layer-controls__legend">
+              <div className="layer-controls__gradient" style={{ background: gradientCss }} />
+              <div className="layer-controls__legend-labels">
+                <span>
+                  {formatValue(scale?.min)} {activeField?.unit}
+                </span>
+                <span>
+                  {formatValue(scale?.max)} {activeField?.unit}
+                </span>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

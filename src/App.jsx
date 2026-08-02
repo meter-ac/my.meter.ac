@@ -17,6 +17,7 @@ import {
 } from './api/meterApi.js';
 import { DERIVED_LAYERS } from './api/derivedLayers.js';
 import { createColorScale } from './color/colorScale.js';
+import { isAqiParameter, createAqiColorScale } from './color/aqiScale.js';
 import { buildValueGrid } from './interpolation/idw.js';
 import { buildAltitudeCorrectedGrid } from './interpolation/altitudeCorrection.js';
 import { getFavoriteStation, setFavoriteStation, clearFavoriteStation } from './utils/favoriteStation.js';
@@ -177,9 +178,11 @@ export default function App() {
     return points;
   }, [stations, readings, sourceField, selectedParameter]);
 
-  // Fixed across the whole animation (pooled from every frame) so colors
-  // don't rescale frame-to-frame during playback.
-  const colorScale = useMemo(() => {
+  // The real data spread — fixed across the whole animation (pooled from
+  // every frame) so contour levels don't rescale frame-to-frame during
+  // playback. Always computed, even for AQI-banded parameters below, since
+  // contour line levels need the actual value range, not the fixed bands.
+  const valueRange = useMemo(() => {
     if (!selectedParameter) return null;
     if (isTimeLapse) {
       const allValues = [];
@@ -193,6 +196,16 @@ export default function App() {
     }
     return createColorScale(stationPoints.map((p) => p.value));
   }, [selectedParameter, stationPoints, isTimeLapse, timeLapseFrames]);
+
+  // PM2.5/PM10 have official EAQI health-threshold bands, so their marker/
+  // heatmap/legend colors come from fixed concentration cutoffs instead of
+  // this dataset's own min/max — a uniformly "moderate" day shouldn't still
+  // paint blue-to-red just because that's today's spread.
+  const colorScale = useMemo(() => {
+    if (!selectedParameter) return null;
+    if (isAqiParameter(selectedParameter)) return createAqiColorScale(selectedParameter);
+    return valueRange;
+  }, [selectedParameter, valueRange]);
 
   const altitudeCorrected = useMemo(() => {
     if (!derivedLayer || stationPoints.length === 0) return null;
@@ -272,6 +285,7 @@ export default function App() {
             selectedParameter={selectedParameter}
             markerValueKey={sourceField}
             colorScale={colorScale}
+            valueRange={valueRange}
             valueGrid={valueGrid}
             showHeatmap={showHeatmap}
             showContours={showContours}

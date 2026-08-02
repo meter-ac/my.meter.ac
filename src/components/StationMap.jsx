@@ -83,6 +83,7 @@ export default function StationMap({
   selectedParameter,
   markerValueKey,
   colorScale,
+  valueRange,
   valueGrid,
   showHeatmap,
   showContours,
@@ -99,11 +100,11 @@ export default function StationMap({
       {showHeatmap && selectedParameter && colorScale && (
         <HeatmapOverlay valueGrid={valueGrid} getColorForValue={colorScale.getColorForValue} />
       )}
-      {showContours && selectedParameter && colorScale && (
+      {showContours && selectedParameter && valueRange && (
         <ContourLayer
           valueGrid={valueGrid}
-          min={colorScale.min}
-          max={colorScale.max}
+          min={valueRange.min}
+          max={valueRange.max}
           step={contourStep}
           unit={contourUnit}
         />
