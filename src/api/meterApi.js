@@ -147,21 +147,34 @@ export async function fetchNodeHistory(nodeId, hours) {
   });
 }
 
-// Network-wide daily mean for one parameter — feeds the calendar heatmap.
-// Aggregated server-side (GROUP BY time(1d), no node grouping) so a full
-// year is cheap: ~25KB/2.6s verified live, versus ~270KB for just 24h of
-// one parameter in fetchParameterTimeSeries (that one groups by node too).
-export async function fetchDailyNetworkAverage(parameterKey, days = 365) {
-  const query = `select mean(${parameterKey}) as ${parameterKey} from box where ${LOCATION_FILTER} and time > now() - ${days}d group by time(1d) fill(none)`;
+function nodeFilterClause(nodeIds) {
+  if (!nodeIds || nodeIds.length === 0) return '';
+  if (nodeIds.length === 1) return ` and node_id = '${nodeIds[0]}'`;
+  return ` and node_id =~ /^(${nodeIds.join('|')})$/`;
+}
+
+// Average daily low/high for one parameter, feeds the calendar heatmap.
+// Needs a subquery: inner computes each station's own daily min/max, outer
+// averages those across stations for that day. Verified live: cost scales
+// with node-count x days, NOT payload size (which stays tiny either way) —
+// whole-network+365d is ~4.8s/23KB, but whole-network+1000d balloons to
+// ~36.6s despite only ~62KB, while a SINGLE station handles 1000d in ~7s.
+// Callers must keep wide scope (no nodeIds) paired with shorter periods.
+export async function fetchDailyMinMax(parameterKey, { days = 365, nodeIds = null } = {}) {
+  const filter = `${LOCATION_FILTER}${nodeFilterClause(nodeIds)}`;
+  const query = `select mean(${parameterKey}_min) as min, mean(${parameterKey}_max) as max from (select min(${parameterKey}) as ${parameterKey}_min, max(${parameterKey}) as ${parameterKey}_max from box where ${filter} and time > now() - ${days}d group by time(1d), node_id) where time > now() - ${days}d group by time(1d) fill(none)`;
   const url = `${INFLUX_QUERY_URL}?db=${INFLUX_DB}&u=${INFLUX_USER}&p=${INFLUX_PASSWORD}&q=${encodeURIComponent(query)}`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`Failed to load daily averages (${res.status})`);
+  if (!res.ok) throw new Error(`Failed to load daily min/max (${res.status})`);
   const data = await res.json();
   const series = data?.results?.[0]?.series ?? [];
   if (series.length === 0) return [];
   const { columns, values } = series[0];
-  const valueIdx = columns.indexOf(parameterKey);
-  return values.filter((row) => row[valueIdx] !== null).map((row) => ({ date: row[0].slice(0, 10), value: row[valueIdx] }));
+  const minIdx = columns.indexOf('min');
+  const maxIdx = columns.indexOf('max');
+  return values
+    .filter((row) => row[minIdx] !== null && row[maxIdx] !== null)
+    .map((row) => ({ date: row[0].slice(0, 10), min: row[minIdx], max: row[maxIdx] }));
 }
 
 // meterac-ui's own nodes.js parses this same "cams :" line from nodes.txt at

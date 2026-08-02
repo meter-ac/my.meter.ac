@@ -9,10 +9,10 @@ export default function OverviewView({ stations, currentReadings, onOpenNode }) 
         <NetworkSnapshot stations={stations} currentReadings={currentReadings} onOpenNode={onOpenNode} />
       </section>
 
-      <section className="overview-view__section">
+      <section className="overview-view__section overview-view__section--wide">
         <h2>Long-term trend</h2>
-        <p className="overview-view__hint">Network-wide daily average, last 12 months.</p>
-        <CalendarHeatmap />
+        <p className="overview-view__hint">Average daily low/high — pick a station, region, or the whole network.</p>
+        <CalendarHeatmap stations={stations} />
       </section>
     </div>
   );

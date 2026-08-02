@@ -674,16 +674,50 @@ body {
   margin-top: 0.1rem;
 }
 
+.overview-view__section--wide {
+  max-width: none;
+}
+
+.calendar-heatmap__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+
 .calendar-heatmap select {
   font-size: 0.85rem;
   padding: 0.25rem;
-  margin-bottom: 0.75rem;
+}
+
+.calendar-heatmap__period {
+  width: auto;
+  display: inline-flex;
+}
+
+.calendar-heatmap__period button {
+  flex: 0 0 auto;
+  padding: 0.3rem 0.55rem;
 }
 
 .calendar-heatmap__status {
   font-size: 0.85rem;
   color: #555;
   padding: 0.5rem 0;
+}
+
+.calendar-heatmap__grids {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.calendar-heatmap__grid-title {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #14324b;
+  margin-bottom: 0.3rem;
 }
 
 .calendar-heatmap__scroll {
@@ -704,7 +738,7 @@ body {
 }
 
 .calendar-heatmap__legend {
-  margin-top: 0.5rem;
+  margin-top: 0.3rem;
   max-width: 260px;
 }
 
