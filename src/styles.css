@@ -427,6 +427,11 @@ body {
   fill: #777;
 }
 
+.history-chart__gridline {
+  stroke: #eee;
+  stroke-width: 1;
+}
+
 .history-chart__hover-line {
   stroke: #ccc;
   stroke-width: 1;

@@ -16,8 +16,8 @@ function formatTime(isoString) {
 export default function HistoryChart({ points, label, unit, color = '#1a5f8c' }) {
   const [hoverIndex, setHoverIndex] = useState(null);
 
-  const { path, dots, xForIndex, minValue, maxValue } = useMemo(() => {
-    if (points.length === 0) return { path: '', dots: [], xForIndex: () => 0, minValue: 0, maxValue: 0 };
+  const { path, dots, xForIndex, hLines, vLines } = useMemo(() => {
+    if (points.length === 0) return { path: '', dots: [], xForIndex: () => 0, hLines: [], vLines: [] };
 
     const values = points.map((p) => p.value);
     let min = Math.min(...values);
@@ -39,7 +39,15 @@ export default function HistoryChart({ points, label, unit, color = '#1a5f8c' })
     const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${xFor(i)} ${yFor(p.value)}`).join(' ');
     const dotPositions = points.map((p, i) => ({ x: xFor(i), y: yFor(p.value) }));
 
-    return { path: linePath, dots: dotPositions, xForIndex: xFor, minValue: min + valuePad, maxValue: max - valuePad };
+    const H_TICKS = 4;
+    const horizontalLines = Array.from({ length: H_TICKS + 1 }, (_, i) => {
+      const t = i / H_TICKS;
+      return { y: PADDING.top + t * innerHeight, value: max - t * (max - min) };
+    });
+    const V_TICKS = 5;
+    const verticalLines = Array.from({ length: V_TICKS + 1 }, (_, i) => PADDING.left + (i / V_TICKS) * innerWidth);
+
+    return { path: linePath, dots: dotPositions, xForIndex: xFor, hLines: horizontalLines, vLines: verticalLines };
   }, [points]);
 
   if (points.length === 0) {
@@ -72,12 +80,17 @@ export default function HistoryChart({ points, label, unit, color = '#1a5f8c' })
         onMouseMove={handleMouseMove}
         onMouseLeave={() => setHoverIndex(null)}
       >
-        <text x={PADDING.left - 6} y={PADDING.top + 4} textAnchor="end" className="history-chart__axis-label">
-          {Math.round(maxValue * 10) / 10}
-        </text>
-        <text x={PADDING.left - 6} y={HEIGHT - PADDING.bottom} textAnchor="end" className="history-chart__axis-label">
-          {Math.round(minValue * 10) / 10}
-        </text>
+        {vLines.map((x, i) => (
+          <line key={`v${i}`} x1={x} x2={x} y1={PADDING.top} y2={HEIGHT - PADDING.bottom} className="history-chart__gridline" />
+        ))}
+        {hLines.map((h, i) => (
+          <g key={`h${i}`}>
+            <line x1={PADDING.left} x2={WIDTH - PADDING.right} y1={h.y} y2={h.y} className="history-chart__gridline" />
+            <text x={PADDING.left - 6} y={h.y + 3} textAnchor="end" className="history-chart__axis-label">
+              {Math.round(h.value * 10) / 10}
+            </text>
+          </g>
+        ))}
         <text x={PADDING.left} y={HEIGHT - 6} className="history-chart__axis-label">
           {formatTime(points[0].time)}
         </text>
