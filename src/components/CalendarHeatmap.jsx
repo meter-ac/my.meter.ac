@@ -107,7 +107,7 @@ function MiniCalendarGrid({ title, cells, weeks, monthLabels, colorScale, unit, 
 export default function CalendarHeatmap({ stations }) {
   const [fieldKey, setFieldKey] = useState('t_raw');
   const [scope, setScope] = useState('all');
-  const [periodDays, setPeriodDays] = useState(365);
+  const [periodDays, setPeriodDays] = useState(30);
   const [rows, setRows] = useState(null);
   const [error, setError] = useState(null);
 
