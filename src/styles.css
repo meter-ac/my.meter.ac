@@ -605,6 +605,121 @@ body {
   color: #333;
 }
 
+/* Overview tab */
+.overview-view {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 1rem 1.25rem 2rem;
+}
+
+.overview-view__section {
+  margin-bottom: 2rem;
+  max-width: 720px;
+}
+
+.overview-view__section h2 {
+  font-size: 1.05rem;
+  margin: 0 0 0.5rem;
+}
+
+.overview-view__hint {
+  font-size: 0.8rem;
+  color: #666;
+  margin: 0 0 0.75rem;
+}
+
+.network-snapshot__stat {
+  font-size: 0.9rem;
+  margin-bottom: 0.75rem;
+}
+
+.network-snapshot__leaderboard {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0.6rem;
+}
+
+.leaderboard-card {
+  border: 1px solid #e2e6ea;
+  border-radius: 6px;
+  padding: 0.5rem 0.65rem;
+  background: #fafbfc;
+}
+
+.leaderboard-card__label {
+  font-size: 0.72rem;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-bottom: 0.25rem;
+}
+
+.leaderboard-card__station {
+  display: block;
+  border: none;
+  background: none;
+  padding: 0;
+  color: #1a5f8c;
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-family: inherit;
+  text-align: left;
+}
+
+.leaderboard-card__value {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #14324b;
+  margin-top: 0.1rem;
+}
+
+.calendar-heatmap select {
+  font-size: 0.85rem;
+  padding: 0.25rem;
+  margin-bottom: 0.75rem;
+}
+
+.calendar-heatmap__status {
+  font-size: 0.85rem;
+  color: #555;
+  padding: 0.5rem 0;
+}
+
+.calendar-heatmap__scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.calendar-heatmap__month-label {
+  font-size: 9px;
+  fill: #777;
+}
+
+.calendar-heatmap__tooltip {
+  font-size: 0.8rem;
+  color: #444;
+  margin-top: 0.4rem;
+  min-height: 1.2em;
+}
+
+.calendar-heatmap__legend {
+  margin-top: 0.5rem;
+  max-width: 260px;
+}
+
+.calendar-heatmap__gradient {
+  height: 8px;
+}
+
+.calendar-heatmap__legend-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  color: #555;
+  margin-top: 0.15rem;
+}
+
 @media (max-width: 480px) {
   .app__header {
     flex-direction: column;
