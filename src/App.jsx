@@ -17,6 +17,7 @@ import { DERIVED_LAYERS } from './api/derivedLayers.js';
 import { createColorScale } from './color/colorScale.js';
 import { buildValueGrid } from './interpolation/idw.js';
 import { buildAltitudeCorrectedGrid } from './interpolation/altitudeCorrection.js';
+import { getFavoriteStation, setFavoriteStation, clearFavoriteStation } from './utils/favoriteStation.js';
 
 function formatFrameTime(isoString) {
   return new Date(isoString).toLocaleString(undefined, {
@@ -37,7 +38,13 @@ function readLocation() {
   const nodeId = params.get('node');
   if (nodeId) return { view: 'node', nodeId };
   const v = params.get('view');
-  return { view: TAB_VIEWS.includes(v) ? v : 'map', nodeId: null };
+  if (TAB_VIEWS.includes(v)) return { view: v, nodeId: null };
+  // Bare URL (no params) — land on the favorite station if one is set,
+  // instead of always defaulting to the map. Applies on fresh load and
+  // whenever the user navigates back to "/", not just the first visit.
+  const favorite = getFavoriteStation();
+  if (favorite) return { view: 'node', nodeId: favorite };
+  return { view: 'map', nodeId: null };
 }
 
 export default function App() {
@@ -52,6 +59,7 @@ export default function App() {
   const [dataMode, setDataMode] = useState('current'); // 'current' | 'day-average' | 'time-lapse'
   const [view, setView] = useState('map'); // 'map' | 'table' | 'cameras' | 'node'
   const [selectedNodeId, setSelectedNodeId] = useState(null);
+  const [favoriteStationId, setFavoriteStationId] = useState(() => getFavoriteStation());
 
   const [timeLapseFrames, setTimeLapseFrames] = useState([]);
   const [frameIndex, setFrameIndex] = useState(0);
@@ -86,6 +94,16 @@ export default function App() {
     setView('node');
     setSelectedNodeId(nodeId);
     window.history.pushState({ node: nodeId }, '', `?node=${nodeId}`);
+  }
+
+  function toggleFavorite(nodeId) {
+    if (favoriteStationId === nodeId) {
+      clearFavoriteStation();
+      setFavoriteStationId(null);
+    } else {
+      setFavoriteStation(nodeId);
+      setFavoriteStationId(nodeId);
+    }
   }
 
   function navigateToView(nextView) {
@@ -222,6 +240,15 @@ export default function App() {
               {label}
             </button>
           ))}
+          {favoriteStationId && (
+            <button
+              type="button"
+              className={view === 'node' && selectedNodeId === favoriteStationId ? 'is-active' : ''}
+              onClick={() => navigateToNode(favoriteStationId)}
+            >
+              ★ My Station
+            </button>
+          )}
         </nav>
         {view === 'map' && <span className="app__subtitle">{subtitle}</span>}
       </header>
@@ -283,6 +310,8 @@ export default function App() {
           currentReadings={currentReadings}
           cameraIds={cameraIds}
           onBack={() => navigateToView('map')}
+          isFavorite={favoriteStationId === selectedNodeId}
+          onToggleFavorite={toggleFavorite}
         />
       )}
     </div>

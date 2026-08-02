@@ -2,7 +2,15 @@ import { READING_FIELDS } from '../api/meterApi.js';
 import { timeAgo, formatReading } from '../utils/format.js';
 import NodeHistoryPanel from './NodeHistoryPanel.jsx';
 
-export default function NodeDetailPage({ nodeId, stations, currentReadings, cameraIds, onBack }) {
+export default function NodeDetailPage({
+  nodeId,
+  stations,
+  currentReadings,
+  cameraIds,
+  onBack,
+  isFavorite,
+  onToggleFavorite,
+}) {
   const station = stations.find((s) => s.id === nodeId);
   const reading = currentReadings.get(nodeId);
   const hasCamera = cameraIds.has(nodeId);
@@ -29,7 +37,12 @@ export default function NodeDetailPage({ nodeId, stations, currentReadings, came
       </button>
 
       <div className="node-page__header">
-        <h1>{station.name}</h1>
+        <div className="node-page__title-row">
+          <h1>{station.name}</h1>
+          <button type="button" className="node-page__favorite" onClick={() => onToggleFavorite(nodeId)}>
+            {isFavorite ? '★ Favorite' : '☆ Set as favorite'}
+          </button>
+        </div>
         <div className="node-page__meta">
           {station.id}
           {Number.isFinite(station.altitude) ? ` · ${station.altitude} m asl` : ''} · {station.lat.toFixed(4)},{' '}

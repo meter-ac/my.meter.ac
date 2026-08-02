@@ -334,6 +334,23 @@ body {
   font-size: 1.4rem;
 }
 
+.node-page__title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.node-page__favorite {
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 4px;
+  padding: 0.15rem 0.55rem;
+  font-size: 0.78rem;
+  color: #a06a00;
+  cursor: pointer;
+}
+
 .node-page__meta {
   font-size: 0.8rem;
   color: #666;
