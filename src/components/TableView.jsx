@@ -92,10 +92,20 @@ export default function TableView({ stations, readings, cameraIds, onOpenNode })
       {category !== 'nodes' && error && <div className="table-view__status">Couldn't load: {error}</div>}
 
       {category === 'meteo' && cache.meteo && (
-        <StationTable stations={cache.meteo.stations} readings={cache.meteo.readings} fields={METEO_FIELDS} />
+        <StationTable
+          stations={cache.meteo.stations}
+          readings={cache.meteo.readings}
+          fields={METEO_FIELDS}
+          externalLinkFor={(row) => `https://meter.ac/gs/meteo/${row.id}/history.html`}
+        />
       )}
       {category === 'earth' && cache.earth && (
-        <StationTable stations={cache.earth.stations} readings={cache.earth.readings} fields={EARTH_FIELDS} />
+        <StationTable
+          stations={cache.earth.stations}
+          readings={cache.earth.readings}
+          fields={EARTH_FIELDS}
+          externalLinkFor={(row) => `https://meter.ac/gs/earth/${row.id}/history.html`}
+        />
       )}
       {category === 'earthquakes' && cache.earthquakes && <EarthquakeTable earthquakes={cache.earthquakes} />}
       {category === 'radiation' && cache.radiation && (

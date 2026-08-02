@@ -6,8 +6,12 @@ import { timeAgo, formatReading } from '../utils/format.js';
 // field sets and data sources. cameraIds/onOpenNode are optional: Meteo and
 // Earth have neither a camera flag nor a node detail page (NodeDetailPage is
 // hardcoded to the `box` measurement's fields), so those columns/the
-// row-click just don't render when the props are omitted.
-export default function StationTable({ stations, readings, fields, cameraIds, onOpenNode }) {
+// row-click just don't render when the props are omitted. externalLinkFor is
+// the Meteo/Earth alternative — a per-row link out to that station's own
+// history chart on meter.ac (confirmed live: .../gs/meteo/{id}/history.html
+// and .../gs/earth/{id}/history.html both work, unlike gauge.html which 404s
+// for those two networks).
+export default function StationTable({ stations, readings, fields, cameraIds, onOpenNode, externalLinkFor }) {
   const [sortKey, setSortKey] = useState('name');
   const [sortDir, setSortDir] = useState(1);
   const [filterText, setFilterText] = useState('');
@@ -19,10 +23,11 @@ export default function StationTable({ stations, readings, fields, cameraIds, on
       { key: 'ts', label: 'Status', getValue: (row) => row.ts ?? -1 },
     ];
     if (cameraIds) cols.push({ key: 'camera', label: 'Cam', getValue: (row) => (cameraIds.has(row.id) ? 1 : 0) });
+    if (externalLinkFor) cols.push({ key: 'link', label: 'Chart', getValue: () => 0 });
     cols.push({ key: 'altitude', label: 'Alt. [m]', getValue: (row) => row.altitude });
     cols.push(...fields.map((f) => ({ key: f.key, label: `${f.label} [${f.unit}]`, getValue: (row) => row[f.key] })));
     return cols;
-  }, [fields, cameraIds]);
+  }, [fields, cameraIds, externalLinkFor]);
 
   const rows = useMemo(() => {
     return stations.map((station) => ({ ...station, ...(readings.get(station.id) ?? {}) }));
@@ -88,6 +93,18 @@ export default function StationTable({ stations, readings, fields, cameraIds, on
                   {row.ts ? timeAgo(row.ts) : 'no data'}
                 </td>
                 {cameraIds && <td>{cameraIds.has(row.id) ? '📷' : ''}</td>}
+                {externalLinkFor && (
+                  <td>
+                    <a
+                      href={externalLinkFor(row)}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      History ↗
+                    </a>
+                  </td>
+                )}
                 <td>{Number.isFinite(row.altitude) ? row.altitude : '–'}</td>
                 {fields.map((f) => (
                   <td key={f.key}>{typeof row[f.key] === 'number' ? formatReading(row[f.key]) : '–'}</td>
