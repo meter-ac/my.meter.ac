@@ -62,6 +62,95 @@ body {
   border-color: white;
 }
 
+.app__settings-button {
+  margin-left: auto;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: transparent;
+  color: #b7cbdc;
+  border-radius: 4px;
+  width: 1.8rem;
+  height: 1.8rem;
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.app__settings-button:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 30, 40, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal {
+  background: white;
+  border-radius: 8px;
+  max-width: 480px;
+  width: 100%;
+  padding: 1rem 1.25rem 1.25rem;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+}
+
+.modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.modal__header h2 {
+  font-size: 1rem;
+  margin: 0;
+  color: #14324b;
+}
+
+.modal__close {
+  border: none;
+  background: transparent;
+  font-size: 1.3rem;
+  line-height: 1;
+  cursor: pointer;
+  color: #666;
+  padding: 0.1rem 0.4rem;
+}
+
+.modal__option {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.6rem;
+  cursor: pointer;
+}
+
+.modal__option input {
+  margin-top: 0.2rem;
+  flex: 0 0 auto;
+}
+
+.modal__option-title {
+  display: block;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #222;
+  margin-bottom: 0.2rem;
+}
+
+.modal__option-hint {
+  display: block;
+  font-size: 0.78rem;
+  color: #666;
+  line-height: 1.4;
+}
+
 .app__error {
   padding: 0.5rem 1rem;
   background: #ffe1e1;
@@ -648,6 +737,18 @@ body {
   padding: 2rem;
   text-align: center;
   color: #666;
+}
+
+.camera-gallery__regions {
+  display: inline-flex;
+  background: #eef1f4;
+  margin-bottom: 0.75rem;
+}
+
+.camera-gallery__regions button {
+  background: #eef1f4;
+  color: #14324b;
+  padding: 0.35rem 0.8rem;
 }
 
 .camera-gallery__grid {

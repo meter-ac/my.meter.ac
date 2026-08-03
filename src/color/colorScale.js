@@ -35,13 +35,18 @@ function quantile(sortedValues, p) {
 // many outliers actually exist, unlike trimming a fixed percentage, and works
 // the same way regardless of parameter/unit. Values outside the fence still
 // render, just clamped to the nearest end color instead of extending the ramp.
-export function createColorScale(values) {
+//
+// useTukeyFences: false skips this — a curator trying to spot failed sensors
+// wants exactly the opposite behavior, since a fenced-out faulty reading gets
+// clamped to a normal-looking end color instead of standing out. Defaults on
+// for the general map view; see utils/curatorSettings.js for the toggle.
+export function createColorScale(values, { useTukeyFences = true } = {}) {
   const finite = values.filter((v) => typeof v === 'number' && Number.isFinite(v)).sort((a, b) => a - b);
   if (finite.length === 0) {
     return { min: 0, max: 0, getColor: () => 'rgb(154,165,173)', getColorForValue: () => [154, 165, 173] };
   }
   let scaleValues = finite;
-  if (finite.length >= 4) {
+  if (useTukeyFences && finite.length >= 4) {
     const q1 = quantile(finite, 0.25);
     const q3 = quantile(finite, 0.75);
     const iqr = q3 - q1;

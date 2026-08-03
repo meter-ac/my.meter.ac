@@ -6,6 +6,7 @@ import CameraGallery from './components/CameraGallery.jsx';
 import NodeDetailPage from './components/NodeDetailPage.jsx';
 import OverviewView from './components/OverviewView.jsx';
 import AboutPage from './components/AboutPage.jsx';
+import CuratorSettingsModal from './components/CuratorSettingsModal.jsx';
 import {
   fetchStations,
   fetchLatestReadings,
@@ -22,6 +23,7 @@ import { fixedRangeFor } from './color/fixedRanges.js';
 import { buildValueGrid } from './interpolation/idw.js';
 import { buildAltitudeCorrectedGrid } from './interpolation/altitudeCorrection.js';
 import { getFavoriteStation, setFavoriteStation, clearFavoriteStation } from './utils/favoriteStation.js';
+import { getCuratorSettings, setCuratorSettings } from './utils/curatorSettings.js';
 
 function formatFrameTime(isoString) {
   return new Date(isoString).toLocaleString(undefined, {
@@ -65,6 +67,8 @@ export default function App() {
   const [view, setView] = useState('map'); // 'map' | 'table' | 'cameras' | 'node'
   const [selectedNodeId, setSelectedNodeId] = useState(null);
   const [favoriteStationId, setFavoriteStationId] = useState(() => getFavoriteStation());
+  const [curatorSettings, setCuratorSettingsState] = useState(() => getCuratorSettings());
+  const [showCuratorSettings, setShowCuratorSettings] = useState(false);
 
   const [timeLapseFrames, setTimeLapseFrames] = useState([]);
   const [frameIndex, setFrameIndex] = useState(0);
@@ -120,6 +124,14 @@ export default function App() {
     setView(nextView);
     setSelectedNodeId(null);
     window.history.pushState({ view: nextView }, '', nextView === 'map' ? window.location.pathname : `?view=${nextView}`);
+  }
+
+  function updateCuratorSettings(patch) {
+    setCuratorSettingsState((prev) => {
+      const next = { ...prev, ...patch };
+      setCuratorSettings(next);
+      return next;
+    });
   }
 
   const isDayAverage = dataMode === 'day-average';
@@ -185,6 +197,7 @@ export default function App() {
   // contour line levels need the actual value range, not the fixed bands.
   const valueRange = useMemo(() => {
     if (!selectedParameter) return null;
+    const scaleOptions = { useTukeyFences: curatorSettings.useTukeyFences };
     if (isTimeLapse) {
       const allValues = [];
       for (const frame of timeLapseFrames) {
@@ -193,10 +206,13 @@ export default function App() {
           if (typeof v === 'number' && Number.isFinite(v)) allValues.push(v);
         });
       }
-      return createColorScale(allValues);
+      return createColorScale(allValues, scaleOptions);
     }
-    return createColorScale(stationPoints.map((p) => p.value));
-  }, [selectedParameter, stationPoints, isTimeLapse, timeLapseFrames]);
+    return createColorScale(
+      stationPoints.map((p) => p.value),
+      scaleOptions,
+    );
+  }, [selectedParameter, stationPoints, isTimeLapse, timeLapseFrames, curatorSettings.useTukeyFences]);
 
   // PM2.5/PM10 have official EAQI health-threshold bands, and temperature
   // gets a fixed -30…45°C anchor (standard weather-map convention) — both so
@@ -280,7 +296,23 @@ export default function App() {
           )}
         </nav>
         {view === 'map' && <span className="app__subtitle">{subtitle}</span>}
+        <button
+          type="button"
+          className="app__settings-button"
+          onClick={() => setShowCuratorSettings(true)}
+          title="Curator settings"
+          aria-label="Curator settings"
+        >
+          ⚙
+        </button>
       </header>
+      {showCuratorSettings && (
+        <CuratorSettingsModal
+          settings={curatorSettings}
+          onChange={updateCuratorSettings}
+          onClose={() => setShowCuratorSettings(false)}
+        />
+      )}
       {error && <div className="app__error">Failed to load data: {error}</div>}
       {stations && view === 'map' && (
         <div className="app__map-wrap">
@@ -338,6 +370,7 @@ export default function App() {
           stations={stations}
           cameraIds={cameraIds}
           cameraLastSeen={cameraLastSeen}
+          showOffline={curatorSettings.showOfflineCameras}
           onOpenNode={navigateToNode}
         />
       )}
