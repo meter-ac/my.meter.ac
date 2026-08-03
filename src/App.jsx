@@ -17,10 +17,10 @@ import {
   READING_FIELDS,
 } from './api/meterApi.js';
 import { DERIVED_LAYERS } from './api/derivedLayers.js';
-import { createColorScale, createFixedColorScale } from './color/colorScale.js';
+import { createColorScale, createFixedColorScale, filterTukeyOutliers } from './color/colorScale.js';
 import { isAqiParameter, createAqiColorScale } from './color/aqiScale.js';
 import { fixedRangeFor } from './color/fixedRanges.js';
-import { buildValueGrid } from './interpolation/idw.js';
+import { buildValueGrid, buildVoronoiGrid } from './interpolation/idw.js';
 import { buildAltitudeCorrectedGrid } from './interpolation/altitudeCorrection.js';
 import { getFavoriteStation, setFavoriteStation, clearFavoriteStation } from './utils/favoriteStation.js';
 import { getCuratorSettings, setCuratorSettings } from './utils/curatorSettings.js';
@@ -76,6 +76,13 @@ export default function App() {
   const [isLoadingTimeLapse, setIsLoadingTimeLapse] = useState(false);
   const [timeLapseError, setTimeLapseError] = useState(null);
   const frameGridCache = useRef(new Map());
+
+  // Cached per-frame grids were built under whatever outlier-fencing/
+  // interpolation-method setting was active at the time — stale once either
+  // changes, so drop them rather than show an old setting's grid.
+  useEffect(() => {
+    frameGridCache.current = new Map();
+  }, [curatorSettings.useTukeyFences, curatorSettings.interpolationMethod]);
 
   useEffect(() => {
     Promise.all([fetchStations(), fetchLatestReadings(), fetchDayAverageReadings(), fetchCameraNodeIds()])
@@ -191,6 +198,20 @@ export default function App() {
     return points;
   }, [stations, readings, sourceField, selectedParameter]);
 
+  // What actually feeds the interpolated surface (heatmap/contours) — same
+  // fence as the color scale, but applied to the points themselves rather
+  // than just the color range, so a broken sensor (e.g. a pressure reading
+  // in the thousands of hPa) can't drag the whole surface around it toward
+  // an impossible value. Markers still use stationPoints directly above, so
+  // a fenced-out station's real (wrong) reading is still visible on its own
+  // marker — only the smoothed/blended surface treats it as absent.
+  const interpolationPoints = useMemo(() => {
+    if (!curatorSettings.useTukeyFences) return stationPoints;
+    return filterTukeyOutliers(stationPoints);
+  }, [stationPoints, curatorSettings.useTukeyFences]);
+
+  const buildGrid = curatorSettings.interpolationMethod === 'voronoi' ? buildVoronoiGrid : buildValueGrid;
+
   // The real data spread — fixed across the whole animation (pooled from
   // every frame) so contour levels don't rescale frame-to-frame during
   // playback. Always computed, even for AQI-banded parameters below, since
@@ -231,21 +252,21 @@ export default function App() {
   }, [selectedParameter, sourceField, valueRange]);
 
   const altitudeCorrected = useMemo(() => {
-    if (!derivedLayer || stationPoints.length === 0) return null;
-    return buildAltitudeCorrectedGrid(stationPoints);
-  }, [derivedLayer, stationPoints]);
+    if (!derivedLayer || interpolationPoints.length === 0) return null;
+    return buildAltitudeCorrectedGrid(interpolationPoints, buildGrid);
+  }, [derivedLayer, interpolationPoints, buildGrid]);
 
   const valueGrid = useMemo(() => {
     if (derivedLayer) return altitudeCorrected?.grid ?? null;
-    if (stationPoints.length === 0) return null;
+    if (interpolationPoints.length === 0) return null;
     if (isTimeLapse) {
       if (frameGridCache.current.has(frameIndex)) return frameGridCache.current.get(frameIndex);
-      const grid = buildValueGrid(stationPoints);
+      const grid = buildGrid(interpolationPoints);
       frameGridCache.current.set(frameIndex, grid);
       return grid;
     }
-    return buildValueGrid(stationPoints);
-  }, [derivedLayer, altitudeCorrected, stationPoints, isTimeLapse, frameIndex]);
+    return buildGrid(interpolationPoints);
+  }, [derivedLayer, altitudeCorrected, interpolationPoints, isTimeLapse, frameIndex, buildGrid]);
 
   const onlineCount = stations ? stations.filter((s) => readings.has(s.id)).length : 0;
 

@@ -8,36 +8,81 @@ export default function CuratorSettingsModal({ settings, onChange, onClose }) {
             ×
           </button>
         </div>
-        <label className="modal__option">
-          <input
-            type="checkbox"
-            checked={settings.useTukeyFences}
-            onChange={(e) => onChange({ useTukeyFences: e.target.checked })}
-          />
-          <span>
-            <span className="modal__option-title">Exclude outliers from map color scale (Tukey&apos;s fences)</span>
-            <span className="modal__option-hint">
+
+        <div className="modal__option-row">
+          <label className="modal__option">
+            <input
+              type="checkbox"
+              checked={settings.useTukeyFences}
+              onChange={(e) => onChange({ useTukeyFences: e.target.checked })}
+            />
+            <span className="modal__option-title">Exclude outliers (Tukey&apos;s fences)</span>
+          </label>
+          <details className="modal__option-details">
+            <summary>What does this do?</summary>
+            <p className="modal__option-hint">
               On (default): a handful of faulty sensor readings won&apos;t stretch the whole color scale into one
-              flat color for everyone else. Turn off to spot failed sensors — every reading, including obviously
-              broken ones, then drives the scale, so a stuck or runaway sensor shows up as an extreme color instead
-              of being fenced out and clamped to a normal-looking end color.
-            </span>
-          </span>
-        </label>
-        <label className="modal__option">
-          <input
-            type="checkbox"
-            checked={settings.showOfflineCameras}
-            onChange={(e) => onChange({ showOfflineCameras: e.target.checked })}
-          />
-          <span>
+              flat color, and won&apos;t get fed into the map&apos;s interpolated surface either — a broken pressure
+              sensor reading e.g. 2000 hPa no longer drags the heatmap/contours around it toward that value. Turn
+              off to spot failed sensors instead — every reading, including obviously broken ones, then drives both
+              the scale and the interpolation, so a stuck or runaway sensor shows up as an extreme color and visibly
+              distorts the surface around it instead of being fenced out.
+            </p>
+          </details>
+        </div>
+
+        <div className="modal__option-row">
+          <label className="modal__option">
+            <input
+              type="checkbox"
+              checked={settings.showOfflineCameras}
+              onChange={(e) => onChange({ showOfflineCameras: e.target.checked })}
+            />
             <span className="modal__option-title">Show offline cameras in the gallery</span>
-            <span className="modal__option-hint">
+          </label>
+          <details className="modal__option-details">
+            <summary>What does this do?</summary>
+            <p className="modal__option-hint">
               On (default): cameras with no recent snapshot still appear, dimmed and badged as offline. Turn off to
               hide them entirely and only see cameras that are currently live.
-            </span>
+            </p>
+          </details>
+        </div>
+
+        <div className="modal__option-row">
+          <div className="modal__option-title">Map interpolation method</div>
+          <span className="modal__radio-row">
+            <label>
+              <input
+                type="radio"
+                name="interpolationMethod"
+                value="idw"
+                checked={settings.interpolationMethod === 'idw'}
+                onChange={() => onChange({ interpolationMethod: 'idw' })}
+              />
+              Inverse Distance Weighting (IDW)
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="interpolationMethod"
+                value="voronoi"
+                checked={settings.interpolationMethod === 'voronoi'}
+                onChange={() => onChange({ interpolationMethod: 'voronoi' })}
+              />
+              Voronoi
+            </label>
           </span>
-        </label>
+          <details className="modal__option-details">
+            <summary>What does this do?</summary>
+            <p className="modal__option-hint">
+              Inverse Distance Weighting (IDW, default) blends every station&apos;s value into a smooth surface,
+              weighted by distance. Voronoi instead gives each grid cell its single nearest station&apos;s value
+              outright — flat regions with hard edges at the midpoint between stations, but a bad reading can never
+              bleed past its own region the way it can with IDW&apos;s smooth, unbounded blending.
+            </p>
+          </details>
+        </div>
       </div>
     </div>
   );

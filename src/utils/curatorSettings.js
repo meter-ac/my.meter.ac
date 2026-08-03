@@ -6,6 +6,7 @@ const STORAGE_KEY = 'meteracnew.curatorSettings';
 const DEFAULTS = {
   useTukeyFences: true,
   showOfflineCameras: true,
+  interpolationMethod: 'idw', // 'idw' | 'voronoi'
 };
 
 export function getCuratorSettings() {

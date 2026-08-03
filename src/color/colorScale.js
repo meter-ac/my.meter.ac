@@ -28,9 +28,37 @@ function quantile(sortedValues, p) {
   return sortedValues[lo] + (sortedValues[hi] - sortedValues[lo]) * (idx - lo);
 }
 
-// Bounds exclude outliers using Tukey's fences (1.5x the interquartile range
-// beyond Q1/Q3) instead of true min/max — a handful of faulty sensors (e.g. a
-// pressure reading in the thousands of hPa) would otherwise stretch the whole
+// Tukey's fences: 1.5x the interquartile range beyond Q1/Q3. Returns null
+// when there aren't enough points to fit quartiles meaningfully.
+function tukeyFenceBounds(sortedFiniteValues) {
+  if (sortedFiniteValues.length < 4) return null;
+  const q1 = quantile(sortedFiniteValues, 0.25);
+  const q3 = quantile(sortedFiniteValues, 0.75);
+  const iqr = q3 - q1;
+  return { lower: q1 - 1.5 * iqr, upper: q3 + 1.5 * iqr };
+}
+
+// Drops points outside the Tukey fence computed from the group's own values
+// — used to keep a broken sensor (e.g. a pressure reading in the thousands
+// of hPa) out of the map interpolation entirely, not just out of the color
+// scale below. Falls back to the unfiltered list if fencing would remove
+// everything (e.g. too few points, or every value legitimately far apart).
+export function filterTukeyOutliers(points, valueOf = (p) => p.value) {
+  const finite = points
+    .map(valueOf)
+    .filter((v) => typeof v === 'number' && Number.isFinite(v))
+    .sort((a, b) => a - b);
+  const bounds = tukeyFenceBounds(finite);
+  if (!bounds) return points;
+  const within = points.filter((p) => {
+    const v = valueOf(p);
+    return typeof v === 'number' && Number.isFinite(v) && v >= bounds.lower && v <= bounds.upper;
+  });
+  return within.length > 0 ? within : points;
+}
+
+// Bounds exclude outliers using the same Tukey fence instead of true
+// min/max — a handful of faulty sensors would otherwise stretch the whole
 // scale and swamp every real reading into one color. This adapts to however
 // many outliers actually exist, unlike trimming a fixed percentage, and works
 // the same way regardless of parameter/unit. Values outside the fence still
@@ -39,20 +67,17 @@ function quantile(sortedValues, p) {
 // useTukeyFences: false skips this — a curator trying to spot failed sensors
 // wants exactly the opposite behavior, since a fenced-out faulty reading gets
 // clamped to a normal-looking end color instead of standing out. Defaults on
-// for the general map view; see utils/curatorSettings.js for the toggle.
+// for the general map view; see utils/curatorSettings.js for the toggle,
+// which also gates filterTukeyOutliers above for the interpolated surface.
 export function createColorScale(values, { useTukeyFences = true } = {}) {
   const finite = values.filter((v) => typeof v === 'number' && Number.isFinite(v)).sort((a, b) => a - b);
   if (finite.length === 0) {
     return { min: 0, max: 0, getColor: () => 'rgb(154,165,173)', getColorForValue: () => [154, 165, 173] };
   }
   let scaleValues = finite;
-  if (useTukeyFences && finite.length >= 4) {
-    const q1 = quantile(finite, 0.25);
-    const q3 = quantile(finite, 0.75);
-    const iqr = q3 - q1;
-    const lowerFence = q1 - 1.5 * iqr;
-    const upperFence = q3 + 1.5 * iqr;
-    const withinFence = finite.filter((v) => v >= lowerFence && v <= upperFence);
+  const bounds = useTukeyFences ? tukeyFenceBounds(finite) : null;
+  if (bounds) {
+    const withinFence = finite.filter((v) => v >= bounds.lower && v <= bounds.upper);
     if (withinFence.length > 0) scaleValues = withinFence;
   }
   const min = scaleValues[0];

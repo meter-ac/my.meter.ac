@@ -24,7 +24,7 @@
 // convention rather than a value invented for this rewrite.
 export const FIXED_RANGES = {
   t_raw: { min: -30, max: 45 },
-  p_sea: { min: 970, max: 1050 },
+  p_sea: { min: 940, max: 1052 },
   gamma_cpm: { min: 0, max: 200 },
 };
 

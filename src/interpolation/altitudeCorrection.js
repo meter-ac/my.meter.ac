@@ -32,12 +32,13 @@ function fallbackTrend(points) {
 }
 
 // Detrend station readings by a fitted (or standard) lapse rate, interpolate
-// the residual field with plain IDW, then re-trend each grid cell using the
-// real terrain elevation under it (from the bundled DEM). Fitting the slope
-// from live data — rather than assuming a fixed -6.5°C/km — also means a
-// temperature inversion (higher stations reading warmer) comes out the right
-// sign instead of being corrected the wrong way.
-export function buildAltitudeCorrectedGrid(stationPoints) {
+// the residual field (IDW by default, or gridBuilder if given — see
+// idw.js's buildVoronoiGrid for the alternative), then re-trend each grid
+// cell using the real terrain elevation under it (from the bundled DEM).
+// Fitting the slope from live data — rather than assuming a fixed
+// -6.5°C/km — also means a temperature inversion (higher stations reading
+// warmer) comes out the right sign instead of being corrected the wrong way.
+export function buildAltitudeCorrectedGrid(stationPoints, gridBuilder = buildValueGrid) {
   const empty = new Float32Array(GRID_COLS * GRID_ROWS).fill(NaN);
   if (stationPoints.length === 0) return { grid: empty, trend: null };
 
@@ -48,7 +49,7 @@ export function buildAltitudeCorrectedGrid(stationPoints) {
     lon: p.lon,
     value: p.value - (trend.intercept + trend.slope * p.altitude),
   }));
-  const residualGrid = buildValueGrid(residualPoints);
+  const residualGrid = gridBuilder(residualPoints);
 
   const grid = new Float32Array(GRID_COLS * GRID_ROWS);
   for (let row = 0; row < GRID_ROWS; row++) {

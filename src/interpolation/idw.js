@@ -36,6 +36,44 @@ export function buildValueGrid(stationPoints) {
   return values;
 }
 
+// Nearest-station fill — each grid cell simply takes its closest station's
+// value outright. No polygon geometry needed: brute-force nearest-neighbor
+// per cell produces exactly the Voronoi diagram's flat regions, bounded by
+// the perpendicular-bisector edges between neighboring stations, since
+// that's what "nearest station" means at every point in the plane. Unlike
+// IDW, a single station's value can never bleed past its own cell boundary —
+// the tradeoff is a blocky map with hard edges instead of a smooth gradient.
+function nearestValue(stationPoints, lat, lon) {
+  let bestDistSq = Infinity;
+  let bestValue = null;
+  for (const p of stationPoints) {
+    const dLat = p.lat - lat;
+    const dLon = p.lon - lon;
+    const distSq = dLat * dLat + dLon * dLon;
+    if (distSq < bestDistSq) {
+      bestDistSq = distSq;
+      bestValue = p.value;
+    }
+  }
+  return bestValue;
+}
+
+export function buildVoronoiGrid(stationPoints) {
+  const values = new Float32Array(GRID_COLS * GRID_ROWS).fill(NaN);
+  if (stationPoints.length === 0) return values;
+  const mask = getInsideMask();
+  for (let row = 0; row < GRID_ROWS; row++) {
+    const lat = gridLat(row);
+    for (let col = 0; col < GRID_COLS; col++) {
+      const i = row * GRID_COLS + col;
+      if (!mask[i]) continue;
+      const value = nearestValue(stationPoints, lat, gridLon(col));
+      values[i] = value === null ? NaN : value;
+    }
+  }
+  return values;
+}
+
 export function renderHeatmapImage(valueGrid, getColorForValue) {
   const canvas = document.createElement('canvas');
   canvas.width = GRID_COLS;
