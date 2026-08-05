@@ -140,18 +140,24 @@ src/
 
 ## Development
 
-Use Node.js 24. Install reproducibly with `npm ci`; use `npm run dev` for Vite,
-`npm run build` for static output, and `npm test` for the live Playwright suite.
-Install Chromium on a fresh machine with `npx playwright install chromium`.
-Playwright starts or reuses the Vite development server and exercises live
-services; network access is required, and assertions must tolerate changing
-station and camera data. Production-output testing and CI are separate future
-work. Public forks require no secrets or environment configuration.
+Use the exact Node.js 24 and pnpm 11 releases pinned in `.node-version` and
+`package.json`'s `packageManager`; keep development, CI, and image builds aligned
+with them. Install reproducibly with `pnpm install --frozen-lockfile`; use
+`pnpm dev` for Vite, `pnpm build` for static output, and `pnpm test` for the live
+Playwright suite. Install Chromium on a fresh machine with
+`pnpm exec playwright install chromium` (`--with-deps` may be needed on Linux).
 
-Focus tests with `npm test -- tests/core-flows.spec.js` or
-`npm test -- tests/curator-settings.spec.js -g "<test title>"`. There are
-currently no lint, format, or typecheck scripts. Node and the package manager are
-documented but not yet pinned in repository metadata.
+Playwright builds and serves fresh production output with Vite preview on
+`http://localhost:5173` and exercises live services; network access is required,
+and assertions must tolerate changing station and camera data. Local runs may
+reuse an existing server at that address. CI-mode runs never reuse a server,
+reject `test.only`, retain traces and screenshots on failure, and produce an
+HTML report for artifact upload. The CI workflow remains future work. Public
+forks require no secrets or environment configuration.
+
+Focus tests with `pnpm test -- tests/core-flows.spec.js` or
+`pnpm test -- tests/curator-settings.spec.js -g "<test title>"`. There are
+currently no lint, format, or typecheck scripts.
 
 ## Licensing, provenance, and public contributions
 

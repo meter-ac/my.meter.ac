@@ -29,11 +29,12 @@ See [AGENTS.md](./AGENTS.md) for the architecture and data-source reference.
 
 ## Development
 
-Use Node.js 24 and install the exact dependency graph from `package-lock.json`:
+Use the Node.js 24 release pinned in `.node-version` and the exact pnpm 11
+release declared by `packageManager` in `package.json`:
 
 ```sh
-npm ci
-npm run dev
+pnpm install --frozen-lockfile
+pnpm dev
 ```
 
 No `.env`, no backend to run locally — the app talks directly to METER.AC's
@@ -47,14 +48,16 @@ intentionally public and read-only; public forks require no secrets.
 Install Chromium once on a fresh development machine, then run Playwright:
 
 ```sh
-npx playwright install chromium
-npm test
+pnpm exec playwright install chromium
+pnpm test
 ```
 
-The suite starts the Vite development server and exercises real METER.AC,
-InfluxDB, camera, and map-tile services rather than mocks. Network access is
-required, and external data availability can affect a run. Production-output
-testing and CI are planned separately.
+Use `--with-deps` when the host also needs Playwright's Linux system packages.
+The suite builds fresh production assets, serves them with Vite preview at
+`http://localhost:5173`, and exercises real METER.AC, InfluxDB, camera, and
+map-tile services rather than mocks. Network access is required, and external
+data availability can affect a run. CI-mode reporting and failure artifacts
+are configured, but the CI workflow is planned separately.
 
 ### External services
 
@@ -71,9 +74,9 @@ This is a static site (Vite build, output to `dist/`) with **no backend and
 no server-side routing requirement**:
 
 ```sh
-npm ci
-npm run build   # → dist/
-npm run preview # sanity-check the production build locally before deploying
+pnpm install --frozen-lockfile
+pnpm build   # → dist/
+pnpm preview # sanity-check the production build locally before deploying
 ```
 
 - **Navigation is query-string based** (`?node=N06`, `?view=table`), not
