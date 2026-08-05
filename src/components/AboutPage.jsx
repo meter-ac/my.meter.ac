@@ -149,16 +149,26 @@ export default function AboutPage() {
           principles.
         </p>
         <p className="about-page__license">
-          <strong>Data license:</strong> all raw measurements and derived statistics published on this site are
-          dedicated to the public domain under{' '}
+          <strong>Data license:</strong> METER.AC-owned raw measurements and statistics derived from those
+          measurements are dedicated to the public domain under{' '}
           <a href="http://creativecommons.org/publicdomain/zero/1.0/" target="_blank" rel="noreferrer">
             CC0
           </a>{' '}
-          — no permission needed, no attribution required. See the{' '}
+          — no permission needed, no attribution required. Data from NIMH, NIGGG, EEA, OpenStreetMap, and other
+          third-party sources remains subject to the respective source terms. See the{' '}
           <a href="https://meter.ac/gs/metadata" target="_blank" rel="noreferrer">
             raw metadata
           </a>{' '}
           for machine-readable dataset descriptions.
+        </p>
+        <p className="about-page__license">
+          <strong>Code license:</strong> original project code is available from the{' '}
+          <a href="https://github.com/meter-ac/my.meter.ac" target="_blank" rel="noreferrer">
+            source repository
+          </a>{' '}
+          under the <a href="/LICENSE.txt">Apache License 2.0</a>. See the <a href="/NOTICE.txt">project notice</a>{' '}
+          and <a href="/THIRD_PARTY_NOTICES.txt">third-party notices</a> for components and data that retain their
+          own terms.
         </p>
       </section>
 

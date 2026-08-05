@@ -122,9 +122,16 @@ cap the period for wide scopes or restrict to a narrow scope for long periods.
 - No global state library — plain React state, lifted to `App.jsx` where more than
   one view needs it (stations/readings/camera list are fetched once there and passed
   down).
-- No test framework is set up. Changes are verified by running the dev server and
-  driving it with a headless browser (Playwright, installed/verified/removed as a
-  temporary devDependency per change — not a persistent project dependency).
+- Playwright is a persistent development dependency. `npm test` starts the Vite
+  development server and exercises the live METER.AC services; assertions must
+  tolerate changing station and camera data. Network access and a locally
+  installed Chromium browser are required. Production-output testing and CI are
+  separate future work.
+- OpenStreetMap tiles must use exactly
+  `https://tile.openstreetmap.org/{z}/{x}/{y}.png`, retain visible attribution,
+  and receive a valid origin Referer. Do not restore the retired `a`/`b`/`c`
+  hostnames, suppress the Referer, bypass browser caching, or prefetch/bulk
+  download tiles.
 
 ## Directory layout
 ```
@@ -150,5 +157,31 @@ src/
 
 ## Development
 
-`npm run dev` (Vite). No build step needed for the data layer — everything fetches
-live from the public endpoints above, including in local dev.
+Use Node.js 24. Install reproducibly with `npm ci`; use `npm run dev` for Vite,
+`npm run build` for static output, and `npm test` for the live Playwright suite.
+Install Chromium on a fresh machine with `npx playwright install chromium`.
+No build step is needed for the data layer — everything fetches live from the
+public endpoints above, including in local development. Public forks require no
+secrets or environment configuration.
+
+## Licensing, provenance, and public contributions
+
+- Apache-2.0 covers original repository code only. Third-party packages,
+  inherited assets, generated runtime code, map tiles, and external data retain
+  their own terms; maintain `THIRD_PARTY_NOTICES.md` when any dependency or
+  bundled asset changes.
+- Keep `LICENSE`, `NOTICE`, and `THIRD_PARTY_NOTICES.md` byte-synchronized with
+  `public/LICENSE.txt`, `public/NOTICE.txt`, and
+  `public/THIRD_PARTY_NOTICES.txt`. Vite copies these legal artifacts into
+  static output.
+- `src/assets/bulgaria.topo.json` retains the original 2020 meter.ac MIT
+  notice. `src/assets/bulgaria-dem.json` derives from public-domain NASA/USGS
+  SRTM data retrieved through Open Topo Data. `docs/screenshot.png` includes
+  OpenStreetMap tiles and attribution.
+- METER.AC's CC0 dedication covers METER.AC-owned raw measurements and derived
+  statistics, not NIMH, NIGGG, EEA, OpenStreetMap, or other third-party data.
+- Treat pull requests from forks as untrusted. They must not receive repository
+  secrets, write credentials, or package-publication authority. The browser
+  InfluxDB credential is intentionally public/read-only and is not a secret.
+- Direct sensitive reports to GitHub private vulnerability reporting as
+  documented in `SECURITY.md`.
