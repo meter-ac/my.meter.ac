@@ -1,36 +1,29 @@
-# AGENTS.md — meteracnew
+# AGENTS.md
 
-## What this is
+## Scope
 
-A map-first, visualization-focused web frontend for METER.AC, an open atmospheric
-monitoring network (~230 DIY sensor stations plus a smaller network of professional
-weather stations, radon stations, and a couple of external data feeds). This project
-is a **proof of concept for a richer visualization layer** — interactive map, spatial
-interpolation, time-lapse, long-term calendar aggregation — evaluated as a possible
-future replacement for the existing production frontend.
+A map-first React/Vite proof of concept for a richer METER.AC visualization
+frontend. It covers interactive maps, spatial interpolation, time-lapse, and
+long-term aggregation across the open atmospheric monitoring network.
 
-**Out of scope for this repo**: the monetization workstreams sometimes discussed for
-METER.AC (tiered API keys, sponsor-a-node, billing) belong in a separate effort, not
-here. This repo is content/visualization only.
+Monetization, billing, API-key tiers, and station sponsorship belong to separate
+workstreams, not this repository.
 
 ## Architecture
 
-**No backend of its own.** Everything is a static React app (Vite build) that talks
-directly, client-side, to METER.AC's existing public infrastructure:
-
-- A legacy Apache file server (station metadata as CSV/plain-text files, camera
-  snapshots, static per-node history pages).
-- A public, read-only InfluxDB v1 HTTP query endpoint (live and historical sensor
-  readings).
-
-Both are confirmed CORS-open (`Access-Control-Allow-Origin: *`) and don't require a
-proxy. There is a **separate, independent** production frontend deployment (different
-server, different content) — this app's data dependencies do not depend on that
-deployment's fate one way or the other.
-
-No router library. Client-side navigation is plain React state; the one place a real
-URL matters (a shareable/bookmarkable link per station) is handled with
-`history.pushState`/`popstate` directly in `App.jsx` — see `readLocation()`.
+- This is a static browser application with no backend, proxy, `.env`, or
+  provisioning of its own. It calls METER.AC's CORS-open static files and public,
+  read-only InfluxDB v1 endpoint directly.
+- `src/App.jsx` owns top-level UI state and initially loads general nodes,
+  current/24-hour readings, and camera metadata. `TableView` fetches the selected
+  non-node category on demand; Overview subviews fetch their own summaries when
+  selected.
+- There is no router or global state library. `App.jsx` synchronizes plain React
+  state with `?view=...` and `?node=...` through the History API. Routes remain
+  requests for `/`, so static hosting does not need an SPA fallback.
+- Charts, calendar grids, IDW/Voronoi interpolation, contours, and DEM correction
+  are hand-rolled. Reuse those modules before adding a charting or geospatial
+  dependency.
 
 ## Data sources
 
@@ -57,8 +50,6 @@ by name, but the CSV/InfluxDB location filter alone doesn't catch `Makedonia_Hut
 
 ### Live/historical readings (InfluxDB v1 HTTP API)
 Base: `https://meter.uni-plovdiv.net/query?db=meter&u=client&p=<read-only-password>&q=<InfluxQL>`
-(the password is a public, low-privilege, read-only credential already shipped
-client-side by the production frontend — not a secret, reused here as-is).
 
 Three measurements:
 - **`box`** — the general node network. Tags: `node_id`. Fields include `t_raw`,
@@ -68,9 +59,11 @@ Three measurements:
 - **`radon`** — the Earth network. Tags: `location`, `rn_id`. Fields include
   `rn_value_bqm3`, `t_raw`, `p_raw`, `rh`, `sbm20_cpm`. **`rn_id` uses a different ID
   scheme than earth.txt** (`Rn01` vs `E01` — same numeric suffix, different prefix;
-  join by string-replacing the prefix, see `src/api/earthApi.js`).
+  join by string-replacing the prefix, see `src/api/earthApi.js`). Unmatched IDs
+  are intentionally dropped.
 - **`nimh`** — external Bulgarian met-institute data. Tags: `location` only (no
-  node_id). Not currently wired into the UI.
+  node ID or coordinates). Overview exposes server-side aggregate box plots, not
+  map stations.
 
 Meteo (`M`-prefixed) stations are **not in InfluxDB at all**. Each station's current
 reading is its own tiny text file: `meter.ac/gs/meteo/{id}/data.current` — comma-
@@ -93,40 +86,30 @@ cap the period for wide scopes or restrict to a narrow scope for long periods.
 - `meter.ac/gs/eea/gamma-radiation.txt` — daily background-radiation reference CSV
   across ~26 fixed monitoring locations, going back to 2013. **This one is stale** —
   its own latest row can be over a year old — any UI showing it must display the
-  actual date of the data, not imply it's current.
+  actual date of the data, not imply it's current. Full-history loading resolves
+  duplicate dates with the last source row winning.
 - Camera snapshots/timelapse: `meter.ac/gs/nodes/{id}/snap.jpg` and
   `snap-video-last-1d.mp4`. Real cameras, freshness varies wildly station to station
-  (same-day to multiple years stale) — handle broken/stale images gracefully
-  (`onError` hides them), don't assume every camera-flagged station has a live feed.
+  (same-day to multiple years stale). Liveness uses `snap.jpg`'s CORS-visible
+  `Last-Modified` header and a 24-hour threshold; a camera flag alone does not mean
+  the feed is live. Handle broken/stale images gracefully (`onError` hides them).
 
 ## Conventions established in this codebase
 
-- **No chart/mapping libraries beyond Leaflet.** Line charts (`HistoryChart.jsx`),
-  the calendar heatmap (`CalendarHeatmap.jsx`), spatial interpolation (IDW,
-  `interpolation/idw.js`), contour tracing (marching squares,
-  `interpolation/contours.js`), and DEM-based altitude correction
-  (`interpolation/altitudeCorrection.js`) are all hand-rolled — no d3, no charting
-  library, no turf. Keep following this pattern for similar needs rather than adding
-  a dependency; the existing pieces are small and composable.
-- **Color scales use Tukey's IQR fences** (`src/color/colorScale.js`), not true
-  min/max — a handful of faulty sensors (a pressure sensor once reported >2000 hPa
-  live) would otherwise wreck the whole scale. Reuse `createColorScale()` for any
-  new value-driven coloring rather than a raw min/max normalize.
+- **Map color selection is field-specific.** PM2.5/PM10 use EAQI bands in
+  `src/color/aqiScale.js`; temperature, sea-level pressure, and radiation use
+  anchors from `src/color/fixedRanges.js`; other fields use `createColorScale()`
+  with Tukey fences by default.
+- The curator setting can disable Tukey fencing for adaptive scales and
+  interpolation. When enabled, the fence removes outliers from IDW and Voronoi
+  surfaces while station markers still show the underlying readings. It does not
+  replace fixed or EAQI display scales.
 - **Sparse data is normal, not an error.** Every station reports a different subset
-  of parameters; readings objects only contain the fields a station actually has.
-  UI should skip/omit missing fields, never show a fake "N/A" placeholder row.
-- **Simple heuristics over hardcoded lists** where the production frontend already
-  established one — e.g. region tagging (`src/utils/regions.js`) mirrors the
-  production frontend's own altitude/location-prefix heuristic rather than
-  maintaining a separate curated list.
-- No global state library — plain React state, lifted to `App.jsx` where more than
-  one view needs it (stations/readings/camera list are fetched once there and passed
-  down).
-- Playwright is a persistent development dependency. `npm test` starts the Vite
-  development server and exercises the live METER.AC services; assertions must
-  tolerate changing station and camera data. Network access and a locally
-  installed Chromium browser are required. Production-output testing and CI are
-  separate future work.
+  of parameters. Values may be absent or `null`; detail views omit missing fields
+  while tables may render a neutral dash. Never manufacture zero readings.
+- Keep client-derived layers separate from backend field contracts; see
+  `src/api/derivedLayers.js`. Region membership belongs in the nonexclusive
+  heuristic in `src/utils/regions.js`, not a second hardcoded station list.
 - OpenStreetMap tiles must use exactly
   `https://tile.openstreetmap.org/{z}/{x}/{y}.png`, retain visible attribution,
   and receive a valid origin Referer. Do not restore the retired `a`/`b`/`c`
@@ -160,9 +143,15 @@ src/
 Use Node.js 24. Install reproducibly with `npm ci`; use `npm run dev` for Vite,
 `npm run build` for static output, and `npm test` for the live Playwright suite.
 Install Chromium on a fresh machine with `npx playwright install chromium`.
-No build step is needed for the data layer — everything fetches live from the
-public endpoints above, including in local development. Public forks require no
-secrets or environment configuration.
+Playwright starts or reuses the Vite development server and exercises live
+services; network access is required, and assertions must tolerate changing
+station and camera data. Production-output testing and CI are separate future
+work. Public forks require no secrets or environment configuration.
+
+Focus tests with `npm test -- tests/core-flows.spec.js` or
+`npm test -- tests/curator-settings.spec.js -g "<test title>"`. There are
+currently no lint, format, or typecheck scripts. Node and the package manager are
+documented but not yet pinned in repository metadata.
 
 ## Licensing, provenance, and public contributions
 
@@ -185,3 +174,10 @@ secrets or environment configuration.
   InfluxDB credential is intentionally public/read-only and is not a secret.
 - Direct sensitive reports to GitHub private vulnerability reporting as
   documented in `SECURITY.md`.
+
+## Documentation maintenance
+
+When changing package scripts, dependencies, tests, navigation, data-source
+contracts, architecture, licensing, or deployment behavior, update affected
+guidance in `AGENTS.md`, `README.md`, and `TODO.md` in the same change. Remove
+superseded guidance rather than accumulating history.

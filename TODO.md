@@ -1,13 +1,13 @@
 # TODO
 
-## Public repository readiness
+## Public repository readiness — done
 
 The public-readiness change establishes Apache-2.0 licensing for original
 code, preserves third-party and asset notices, documents data-license
 boundaries, adds private vulnerability reporting guidance, updates the
 OpenStreetMap tile endpoint, and tests the public legal artifacts.
 
-The repository remains private until the readiness pull request is merged and
+The readiness pull request is merged, the repository is public, and the planned
 post-merge security settings are enabled.
 
 ## Persistent test suite — done
