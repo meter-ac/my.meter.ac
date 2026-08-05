@@ -1,0 +1,171 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  playwright:
+    name: Playwright
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read Node.js version
+        id: node-version
+        shell: bash
+        run: printf 'version=%s\n' "$(< .node-version)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up pnpm and Node.js
+        uses: pnpm/setup@c9883cc79df532ad1a7b81bf9ab944ceb090d65c # v2.0.0
+        with:
+          runtime: node@${{ steps.node-version.outputs.version }}
+          install: false
+          cache: false
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        run: pnpm test
+
+      - name: Upload failure artifacts
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-failure-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  dependency-review:
+    name: Dependency review
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Review dependency changes
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          fail-on-scopes: runtime, development, unknown
+          license-check: false
+
+  container:
+    name: Container
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check Dockerfile
+        run: docker build --check .
+
+      - name: Build image
+        run: docker build --platform linux/amd64 --tag my-meter-ac:ci .
+
+      - name: Validate runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          image=my-meter-ac:ci
+          container=my-meter-ac-ci
+          base_url=http://127.0.0.1:8080
+          work_dir=$(mktemp -d)
+
+          cleanup() {
+            result=$?
+            if [ "$result" -ne 0 ]; then
+              docker logs "$container" 2>/dev/null || true
+            fi
+            docker rm --force "$container" >/dev/null 2>&1 || true
+            rm -rf "$work_dir"
+            exit "$result"
+          }
+          trap cleanup EXIT
+
+          test "$(docker image inspect --format '{{.Architecture}}' "$image")" = amd64
+          docker run --detach \
+            --name "$container" \
+            --read-only \
+            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
+            --cap-drop ALL \
+            --security-opt no-new-privileges \
+            --publish 127.0.0.1:8080:8080 \
+            "$image"
+
+          health=starting
+          for _ in {1..45}; do
+            health=$(docker inspect --format '{{.State.Health.Status}}' "$container")
+            case "$health" in
+              healthy) break ;;
+              unhealthy) exit 1 ;;
+            esac
+            sleep 2
+          done
+          test "$health" = healthy
+
+          curl --fail --silent --show-error \
+            --dump-header "$work_dir/root.headers" \
+            --output "$work_dir/root.html" \
+            "$base_url/"
+          grep -q '<div id="root"></div>' "$work_dir/root.html"
+          grep -Eqi '^Cache-Control: no-cache' "$work_dir/root.headers"
+          grep -Eqi '^Content-Security-Policy: .+' "$work_dir/root.headers"
+          grep -Eqi '^Permissions-Policy: .+' "$work_dir/root.headers"
+          grep -Eqi '^Referrer-Policy: origin' "$work_dir/root.headers"
+          grep -Eqi '^X-Content-Type-Options: nosniff' "$work_dir/root.headers"
+          grep -Eqi '^X-Frame-Options: DENY' "$work_dir/root.headers"
+
+          for path in '/?view=table' '/?node=N06'; do
+            curl --fail --silent --show-error --output /dev/null "$base_url$path"
+          done
+
+          curl --fail --silent --show-error \
+            --dump-header "$work_dir/health.headers" \
+            --output "$work_dir/health.txt" \
+            "$base_url/healthz"
+          grep -qx 'ok' "$work_dir/health.txt"
+          grep -Eqi '^Cache-Control: no-store' "$work_dir/health.headers"
+
+          asset_path=$(grep -oE '/assets/[^" ]+\.js' "$work_dir/root.html" | sed -n '1p')
+          test -n "$asset_path"
+          curl --fail --silent --show-error \
+            --dump-header "$work_dir/asset.headers" \
+            --output /dev/null \
+            "$base_url$asset_path"
+          grep -Eqi '^Cache-Control: public, max-age=31536000, immutable' "$work_dir/asset.headers"
+
+          status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+            "$base_url/does-not-exist")
+          test "$status" = 404
