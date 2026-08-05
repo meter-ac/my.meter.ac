@@ -155,8 +155,8 @@ Playwright builds and serves fresh production output with Vite preview on
 and assertions must tolerate changing station and camera data. Local runs may
 reuse an existing server at that address. CI-mode runs never reuse a server,
 reject `test.only`, retain traces and screenshots on failure, and produce an
-HTML report for artifact upload. The CI workflow remains future work. Public
-forks require no secrets or environment configuration.
+HTML report for artifact upload. Public forks require no secrets or environment
+configuration.
 
 Set `PLAYWRIGHT_BASE_URL` to test an already-running deployment without
 starting Vite preview, including the production container on port 8080.
@@ -164,6 +164,28 @@ starting Vite preview, including the production container on port 8080.
 Focus tests with `pnpm test -- tests/core-flows.spec.js` or
 `pnpm test -- tests/curator-settings.spec.js -g "<test title>"`. There are
 currently no lint, format, or typecheck scripts.
+
+## Continuous integration
+
+- `.github/workflows/ci.yml` runs for pull requests targeting `master`, pushes
+  to `master`, and manual dispatches. `Playwright`, `Dependency review`, and
+  `Container` are required pull-request checks.
+- The workflow has read-only repository permission. It does not receive secrets,
+  log in to GHCR, or publish packages. Keep write permissions isolated to future
+  trusted publication jobs rather than widening validation permissions.
+- Third-party Actions must be pinned to full commit SHAs with release comments.
+  Dependabot maintains those pins.
+- CI intentionally disables pnpm and BuildKit caches. Do not let untrusted PR
+  cache entries become inputs to a trusted image-publication job.
+- Playwright uses live external services and uploads its report, traces, and
+  screenshots for seven days on failure. Container validation builds only
+  `linux/amd64`, starts the image with the production hardening flags, and checks
+  health, routing, caching, and security headers without publishing the image.
+- `.github/dependabot.yml` checks the `github-actions`, `npm`, and `docker`
+  ecosystems weekly. Version updates have a three-day cooldown; security updates
+  do not. Node container updates stay on major 24 unless deliberately changed.
+  pnpm 11 support in Dependabot is still incomplete, so frozen CI installation
+  must reject manifest-only or invalid lockfile changes.
 
 ## Container runtime
 

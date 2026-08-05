@@ -17,8 +17,8 @@ Playwright suite (`tests/`) against the live backend (no mocking — see
 `playwright.config.js` for why). It covers the core flows
 (map/table/node-detail/overview) plus the curator settings added alongside
 outlier-aware interpolation (Tukey fence toggle, offline-camera visibility,
-IDW/Voronoi switch, camera region filter). CI-mode reporting and failure
-artifacts are configured in preparation for the pipeline.
+IDW/Voronoi switch, camera region filter). CI-mode reporting and seven-day
+failure artifacts are enabled in the pipeline.
 
 The repository pins Node 24 and pnpm 11 and uses `pnpm-lock.yaml` for frozen,
 reproducible installs.
@@ -31,7 +31,14 @@ checks cover the read-only filesystem, `/tmp` tmpfs, health endpoint,
 query-string navigation, direct 404 behavior, cache/security headers, legal
 artifacts, and the live application through Playwright.
 
+## CI and dependency maintenance — done
+
+Pull requests and `master` run required Playwright, dependency-review, and
+hardened-container checks with read-only permissions and no publication path.
+Untrusted pnpm and Docker caches are disabled. Dependabot checks Actions,
+pnpm-managed dependencies, and Docker bases weekly with a three-day version
+cooldown; security updates remain exempt and pass through the same CI.
+
 ## DevOps work still pending
 
-- Add CI validation and Dependabot; no CI pipeline exists yet.
 - Publish trusted preview and production images, then add preview cleanup.

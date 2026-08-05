@@ -56,12 +56,28 @@ Use `--with-deps` when the host also needs Playwright's Linux system packages.
 The suite builds fresh production assets, serves them with Vite preview at
 `http://localhost:5173`, and exercises real METER.AC, InfluxDB, camera, and
 map-tile services rather than mocks. Network access is required, and external
-data availability can affect a run. CI-mode reporting and failure artifacts
-are configured, but the CI workflow is planned separately.
+data availability can affect a run. CI retains the HTML report, traces, and
+screenshots for seven days when the Playwright job fails.
 
 Set `PLAYWRIGHT_BASE_URL` to test an already-running deployment without
 starting Vite preview. For example, run the full suite against the production
 container with `PLAYWRIGHT_BASE_URL=http://127.0.0.1:8080 pnpm test`.
+
+### Continuous integration
+
+GitHub Actions runs on pull requests targeting `master`, pushes to `master`,
+and manual dispatches. The required `Playwright`, `Dependency review`, and
+`Container` checks respectively exercise the production Vite build against the
+live services, reject newly introduced high or critical vulnerabilities, and
+build and probe the hardened `linux/amd64` image. Public forks need no secrets.
+CI has read-only repository access, does not log in to a registry, and cannot
+publish packages or images.
+
+The pnpm store and Docker build cache are deliberately not persisted across CI
+runs so untrusted pull-request cache contents cannot enter a later publication
+job. Dependabot checks GitHub Actions, pnpm-managed npm dependencies, and Docker
+bases weekly. Version updates wait for a three-day cooldown, while security
+updates remain exempt, and every generated pull request must pass the same CI.
 
 ### External services
 
@@ -92,7 +108,8 @@ docker run --rm \
 ```
 
 The health endpoint is `http://127.0.0.1:8080/healthz`. Production must retain
-the read-only root and writable `/tmp` tmpfs contract shown above.
+the read-only root and writable `/tmp` tmpfs contract shown above. CI validates
+this image on every event but does not publish it yet.
 
 - **Navigation is query-string based.** `?node=N06` and `?view=table` remain
   requests for `/`. nginx deliberately has no SPA fallback; unknown paths and
