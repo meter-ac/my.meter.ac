@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { filterTukeyOutliers } from '../src/color/colorScale.js';
 
 // Covers the curator settings modal (Tukey fence toggle, offline-camera
 // visibility, interpolation method) and the camera gallery's region filter.
@@ -42,18 +43,40 @@ test('Tukey-fence and offline-camera settings persist to localStorage across rel
 });
 
 test('hiding offline cameras reduces the gallery to a subset with no offline badges', async ({ page }) => {
+  const settledCameraIds = new Set();
+  const trackSettledCamera = (request) => {
+    if (request.method() !== 'HEAD') return;
+    const match = new URL(request.url()).pathname.match(/^\/gs\/nodes\/([^/]+)\/snap\.jpg$/);
+    if (match) settledCameraIds.add(match[1]);
+  };
+  page.on('requestfinished', trackSettledCamera);
+  page.on('requestfailed', trackSettledCamera);
+
+  const cameraListResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.hostname === 'meter.ac' && url.pathname === '/gs/nodes/nodes.txt';
+  });
   await page.goto('/?view=cameras');
   await expect(page.locator('.camera-card').first()).toBeVisible({ timeout: 15000 });
+  const cameraList = await (await cameraListResponse).text();
+  const camerasLine = cameraList.split('\n').find((line) => line.startsWith('cams'));
+  const expectedCameraIds = camerasLine
+    .replace(/^cams\s*:\s*/, '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  await expect
+    .poll(() => expectedCameraIds.every((id) => settledCameraIds.has(id)), { timeout: 15000 })
+    .toBe(true);
+
   const totalCount = await page.locator('.camera-card').count();
   const offlineCount = await page.locator('.camera-card__badge').count();
 
   await page.click('.app__settings-button');
   await page.locator('.modal__option').nth(1).locator('input[type=checkbox]').uncheck();
   await page.click('.modal__close');
-  await page.waitForTimeout(500);
 
-  const onlineOnlyCount = await page.locator('.camera-card').count();
-  expect(onlineOnlyCount).toBe(totalCount - offlineCount);
+  await expect(page.locator('.camera-card')).toHaveCount(totalCount - offlineCount);
   await expect(page.locator('.camera-card__badge')).toHaveCount(0);
 
   // Reset.
@@ -79,13 +102,27 @@ test('camera region filter narrows the gallery', async ({ page }) => {
 });
 
 test('toggling outlier fencing changes the rendered heatmap surface', async ({ page }) => {
-  // Regression check for the Krichim (N205) case: that station's p_sea
-  // reading is currently a broken ~2055 hPa (real range is ~950-1050), which
-  // used to bleed through the interpolated surface unfiltered. Comparing the
-  // heatmap image's data URL before/after toggling fencing confirms the
-  // setting actually reaches the interpolation, not just the color scale —
-  // if someone regresses that wiring, the image would stop changing here.
+  // Regression check for the Krichim (N205) case without requiring that bad
+  // reading to remain live forever. When the response currently has a Tukey
+  // outlier, the image must change; otherwise the toggle still gets exercised.
+  const latestReadingsResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    const query = url.searchParams.get('q');
+    return (
+      url.hostname === 'meter.uni-plovdiv.net' &&
+      url.pathname === '/query' &&
+      query?.startsWith('select last(ts)')
+    );
+  });
   await page.goto('/');
+  const latestReadings = await (await latestReadingsResponse).json();
+  const pressurePoints = (latestReadings.results?.[0]?.series ?? []).flatMap((series) => {
+    const pressureIndex = series.columns.indexOf('p_sea');
+    const value = series.values?.[0]?.[pressureIndex];
+    return typeof value === 'number' && Number.isFinite(value) ? [{ value }] : [];
+  });
+  const hasLiveOutlier = filterTukeyOutliers(pressurePoints).length < pressurePoints.length;
+
   await page.selectOption('#parameter-select', 'p_sea');
   await page.click('text=Show interpolated surface');
   const heatmapImg = page.locator('.leaflet-image-layer');
@@ -95,10 +132,15 @@ test('toggling outlier fencing changes the rendered heatmap surface', async ({ p
   await page.click('.app__settings-button');
   await page.locator('.modal__option').nth(0).locator('input[type=checkbox]').uncheck();
   await page.click('.modal__close');
-  await page.waitForTimeout(1000);
-  const unfencedSrc = await heatmapImg.getAttribute('src');
-
-  expect(unfencedSrc).not.toBe(fencedSrc);
+  if (hasLiveOutlier) {
+    await expect.poll(() => heatmapImg.getAttribute('src'), { timeout: 10000 }).not.toBe(fencedSrc);
+  } else {
+    await expect(heatmapImg).toBeVisible();
+    test.info().annotations.push({
+      type: 'note',
+      description: 'No live pressure outlier was available for image comparison.',
+    });
+  }
 
   // Reset.
   await page.click('.app__settings-button');

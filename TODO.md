@@ -12,19 +12,19 @@ post-merge security settings are enabled.
 
 ## Persistent test suite — done
 
-`npm test` runs a real Playwright suite (`tests/`) against the live backend
-(no mocking — see `playwright.config.js` for why). Covers the core flows
+`pnpm test` builds and previews the production Vite output, then runs the real
+Playwright suite (`tests/`) against the live backend (no mocking — see
+`playwright.config.js` for why). It covers the core flows
 (map/table/node-detail/overview) plus the curator settings added alongside
 outlier-aware interpolation (Tukey fence toggle, offline-camera visibility,
-IDW/Voronoi switch, camera region filter).
+IDW/Voronoi switch, camera region filter). CI-mode reporting and failure
+artifacts are configured in preparation for the pipeline.
 
-The suite currently runs against Vite's development server. Production-mode
-Playwright testing remains future work.
+The repository pins Node 24 and pnpm 11 and uses `pnpm-lock.yaml` for frozen,
+reproducible installs.
 
 ## DevOps work still pending
 
-- Migrate reproducibly from npm to pnpm 11 and pin the verified Node release.
-- Run Playwright against freshly built production output.
 - Add the hardened production container runtime.
 - Add CI validation and Dependabot; no CI pipeline exists yet.
 - Publish trusted preview and production images, then add preview cleanup.
