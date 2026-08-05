@@ -1,12 +1,12 @@
 # my.meter.ac
 
 A map-first web frontend for [METER.AC](https://meter.ac), an open atmospheric
-monitoring network. This project is a proof-of-concept **replacement for
-[github.com/meter-ac/ui](https://github.com/meter-ac/ui)** — richer
-visualization (interactive map, spatial interpolation, time-lapse, calendar
-trends, a real per-station page) on the same public data the existing site
-already uses. See [AGENTS.md](./AGENTS.md) for the full architecture and data-
-source reference.
+monitoring network. This project is a proof of concept for a richer successor
+to the legacy METER.AC interface: interactive maps, spatial interpolation,
+time-lapse, calendar trends, and shareable station pages over the same public
+data. The source is maintained at
+[github.com/meter-ac/my.meter.ac](https://github.com/meter-ac/my.meter.ac).
+See [AGENTS.md](./AGENTS.md) for the architecture and data-source reference.
 
 ![Map view with the temperature heatmap and isotherm contours active](./docs/screenshot.png)
 
@@ -29,23 +29,49 @@ source reference.
 
 ## Development
 
-```
-npm install
+Use Node.js 24 and install the exact dependency graph from `package-lock.json`:
+
+```sh
+npm ci
 npm run dev
 ```
 
 No `.env`, no backend to run locally — the app talks directly to METER.AC's
 existing public endpoints (a plain file server for station metadata/cameras,
 a public read-only InfluxDB query API for readings) from the browser, in dev
-and in production alike.
+and in production alike. The committed InfluxDB client credential is
+intentionally public and read-only; public forks require no secrets.
+
+### Tests
+
+Install Chromium once on a fresh development machine, then run Playwright:
+
+```sh
+npx playwright install chromium
+npm test
+```
+
+The suite starts the Vite development server and exercises real METER.AC,
+InfluxDB, camera, and map-tile services rather than mocks. Network access is
+required, and external data availability can affect a run. Production-output
+testing and CI are planned separately.
+
+### External services
+
+OpenStreetMap tiles use the current standard endpoint,
+`https://tile.openstreetmap.org/{z}/{x}/{y}.png`, with visible attribution.
+Browsers must send a valid origin Referer as required by the tile usage policy.
+Do not replace it with the retired `a`/`b`/`c` hostnames or suppress the
+Referer. Preserve normal browser caching and do not prefetch, bulk-download, or
+otherwise bypass the tile service's caching controls.
 
 ## Deployment
 
 This is a static site (Vite build, output to `dist/`) with **no backend and
 no server-side routing requirement**:
 
-```
-npm install
+```sh
+npm ci
 npm run build   # → dist/
 npm run preview # sanity-check the production build locally before deploying
 ```
@@ -60,11 +86,15 @@ npm run preview # sanity-check the production build locally before deploying
   go straight from the visitor's browser to METER.AC's already-public,
   CORS-open endpoints (`Access-Control-Allow-Origin: *`, verified) — there is
   nothing for a deploy pipeline to configure beyond the static build itself.
-- To slot into the existing production pipeline (the `meter-ac/ui` repo's
-  Jenkins build: `npm ci` → build → copy the output to wherever nginx serves
-  it from), the only change needed is copying `dist/` instead of `_site/` —
-  the rest of that pipeline (build agent, HTML/asset handling, deploy step)
-  applies unchanged.
-- If deploying under a sub-path rather than a domain root, set `base` in
-  `vite.config.js` accordingly (default is root-relative, matching a direct
-  domain replacement of the current site).
+## License and security
+
+Original repository code is licensed under the
+[Apache License 2.0](./LICENSE). Third-party packages, inherited assets, map
+tiles, and external data are not relicensed; see
+[THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) and [NOTICE](./NOTICE).
+METER.AC-owned raw measurements and statistics derived from them are dedicated
+under CC0, while NIMH, NIGGG, EEA, OpenStreetMap, and other third-party data
+remain subject to their source terms.
+
+Report vulnerabilities through the process in [SECURITY.md](./SECURITY.md),
+not a public issue.
