@@ -1,0 +1,15 @@
+*
+!Dockerfile
+!.dockerignore
+!package.json
+!pnpm-lock.yaml
+!pnpm-workspace.yaml
+!index.html
+!vite.config.js
+!public/
+!public/**
+!src/
+!src/**
+!docker/
+!docker/nginx/
+!docker/nginx/default.conf

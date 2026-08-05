@@ -21,6 +21,9 @@ workstreams, not this repository.
 - There is no router or global state library. `App.jsx` synchronizes plain React
   state with `?view=...` and `?node=...` through the History API. Routes remain
   requests for `/`, so static hosting does not need an SPA fallback.
+- The production image builds with Node/pnpm and copies only `dist/` into an
+  unprivileged nginx runtime. nginx listens on port 8080, exposes `/healthz`,
+  and never proxies the browser's external data requests.
 - Charts, calendar grids, IDW/Voronoi interpolation, contours, and DEM correction
   are hand-rolled. Reuse those modules before adding a charting or geospatial
   dependency.
@@ -155,9 +158,37 @@ reject `test.only`, retain traces and screenshots on failure, and produce an
 HTML report for artifact upload. The CI workflow remains future work. Public
 forks require no secrets or environment configuration.
 
+Set `PLAYWRIGHT_BASE_URL` to test an already-running deployment without
+starting Vite preview, including the production container on port 8080.
+
 Focus tests with `pnpm test -- tests/core-flows.spec.js` or
 `pnpm test -- tests/curator-settings.spec.js -g "<test title>"`. There are
 currently no lint, format, or typecheck scripts.
+
+## Container runtime
+
+- Build only `linux/amd64` with
+  `docker build --platform linux/amd64 -t my-meter-ac:local .`.
+- Run nginx with a read-only root, a small writable `/tmp` tmpfs, all
+  capabilities dropped, and `no-new-privileges`. nginx's PID and temporary
+  paths are under `/tmp`; do not introduce another writable path.
+- Query-string navigation is served from exact `/` requests. Do not add an SPA
+  fallback: unknown paths and missing assets must return 404.
+- `/healthz` returns a small response with `no-store`. `index.html`, errors,
+  legal artifacts, and future unhashed public files require revalidation.
+  `/assets/*` is reserved for Vite-generated content-hashed files and may use
+  one-year immutable cache headers.
+- The CSP must continue allowing browser connections to `meter.ac` and
+  `meter.uni-plovdiv.net`, camera images from `meter.ac`, tile images from exact
+  host `tile.openstreetmap.org`, required inline styles, and generated data
+  images. Keep `Referrer-Policy: origin` so map-tile requests send an
+  origin-only Referer.
+- Traefik owns HTTPS, redirects, and HSTS. nginx serves plain HTTP internally
+  on port 8080 and must not gain certificates, host ports, proxy behavior, or
+  an authoritative Compose definition in this repository.
+- Keep builder and runtime stages separate. The final image must not contain
+  Node, pnpm, application source, tests, reports, Git metadata, or development
+  dependencies.
 
 ## Licensing, provenance, and public contributions
 
@@ -168,7 +199,8 @@ currently no lint, format, or typecheck scripts.
 - Keep `LICENSE`, `NOTICE`, and `THIRD_PARTY_NOTICES.md` byte-synchronized with
   `public/LICENSE.txt`, `public/NOTICE.txt`, and
   `public/THIRD_PARTY_NOTICES.txt`. Vite copies these legal artifacts into
-  static output.
+  static output. When a container base changes, review its package-license
+  inventory and update the runtime section of the notices.
 - `src/assets/bulgaria.topo.json` retains the original 2020 meter.ac MIT
   notice. `src/assets/bulgaria-dem.json` derives from public-domain NASA/USGS
   SRTM data retrieved through Open Topo Data. `docs/screenshot.png` includes

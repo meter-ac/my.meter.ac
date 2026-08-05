@@ -59,6 +59,10 @@ map-tile services rather than mocks. Network access is required, and external
 data availability can affect a run. CI-mode reporting and failure artifacts
 are configured, but the CI workflow is planned separately.
 
+Set `PLAYWRIGHT_BASE_URL` to test an already-running deployment without
+starting Vite preview. For example, run the full suite against the production
+container with `PLAYWRIGHT_BASE_URL=http://127.0.0.1:8080 pnpm test`.
+
 ### External services
 
 OpenStreetMap tiles use the current standard endpoint,
@@ -70,25 +74,47 @@ otherwise bypass the tile service's caching controls.
 
 ## Deployment
 
-This is a static site (Vite build, output to `dist/`) with **no backend and
-no server-side routing requirement**:
+The production artifact is a `linux/amd64` container. A pinned Node 24 builder
+uses the repository's exact pnpm version and frozen lockfile, then a pinned,
+unprivileged nginx runtime serves only the fresh Vite output on port 8080.
+Node, pnpm, source, tests, and development dependencies are not copied into
+the runtime stage.
 
 ```sh
-pnpm install --frozen-lockfile
-pnpm build   # → dist/
-pnpm preview # sanity-check the production build locally before deploying
+docker build --platform linux/amd64 -t my-meter-ac:local .
+docker run --rm \
+  --read-only \
+  --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
+  --cap-drop ALL \
+  --security-opt no-new-privileges \
+  -p 8080:8080 \
+  my-meter-ac:local
 ```
 
-- **Navigation is query-string based** (`?node=N06`, `?view=table`), not
-  path-based routes — every app state is still a request for `/`, so unlike
-  most single-page apps this needs **no rewrite/fallback rule** on the host
-  (no "redirect all paths to `index.html`" config to write). Any static file
-  host works by just pointing it at `dist/`: Netlify, Vercel, GitHub Pages,
-  S3/CloudFront, or a plain nginx `root`.
-- **No secrets, no environment variables, no provisioning.** All data calls
-  go straight from the visitor's browser to METER.AC's already-public,
-  CORS-open endpoints (`Access-Control-Allow-Origin: *`, verified) — there is
-  nothing for a deploy pipeline to configure beyond the static build itself.
+The health endpoint is `http://127.0.0.1:8080/healthz`. Production must retain
+the read-only root and writable `/tmp` tmpfs contract shown above.
+
+- **Navigation is query-string based.** `?node=N06` and `?view=table` remain
+  requests for `/`. nginx deliberately has no SPA fallback; unknown paths and
+  missing assets return 404.
+- **Caching follows the build output.** `index.html`, `/healthz`, errors, legal
+  artifacts, and future unhashed public files are not immutable. Vite-generated
+  `/assets/*` filenames are content-hashed and receive one-year immutable
+  caching.
+- **External data remains browser-owned.** nginx does not proxy METER.AC,
+  InfluxDB, cameras, or map tiles. Its CSP permits the required external
+  origins, same-origin scripts, inline styles used by React and Leaflet, and
+  generated data images. The origin-only referrer policy preserves the Referer
+  required by OpenStreetMap.
+- **Traefik owns TLS.** nginx serves plain HTTP internally. The image contains
+  no certificates, HSTS policy, host routing, or authoritative Compose file.
+- **No deployment configuration or secrets are built in.** The browser's
+  existing InfluxDB credential remains deliberately public and read-only.
+- **Legal artifacts ship with the application.** `/LICENSE.txt`, `/NOTICE.txt`,
+  and `/THIRD_PARTY_NOTICES.txt` are included in the final image and use the
+  non-immutable cache class. Runtime component terms are included in the
+  third-party notices.
+
 ## License and security
 
 Original repository code is licensed under the

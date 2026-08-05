@@ -1,6 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
 const isCI = Boolean(process.env.CI);
+const externalBaseURL = process.env.PLAYWRIGHT_BASE_URL;
 
 // Hits the real backend (meter.uni-plovdiv.net InfluxDB + meter.ac static
 // files) rather than mocking — this app has no backend of its own, it's a
@@ -16,14 +17,16 @@ export default defineConfig({
   forbidOnly: isCI,
   reporter: isCI ? [['line'], ['html', { open: 'never' }]] : 'list',
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: externalBaseURL || 'http://localhost:5173',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
-  webServer: {
-    command: 'pnpm build && pnpm preview --host 127.0.0.1 --port 5173 --strictPort',
-    url: 'http://localhost:5173',
-    reuseExistingServer: !isCI,
-    timeout: 120000,
-  },
+  ...(externalBaseURL ? {} : {
+    webServer: {
+      command: 'pnpm build && pnpm preview --host 127.0.0.1 --port 5173 --strictPort',
+      url: 'http://localhost:5173',
+      reuseExistingServer: !isCI,
+      timeout: 120000,
+    },
+  }),
 });
