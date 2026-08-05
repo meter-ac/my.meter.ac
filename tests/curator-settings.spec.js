@@ -43,6 +43,13 @@ test('Tukey-fence and offline-camera settings persist to localStorage across rel
 });
 
 test('hiding offline cameras reduces the gallery to a subset with no offline badges', async ({ page }) => {
+  const cspErrors = [];
+  page.on('console', (msg) => {
+    if (msg.type() === 'error' && msg.text().includes('Content Security Policy')) {
+      cspErrors.push(msg.text());
+    }
+  });
+
   const settledCameraIds = new Set();
   const trackSettledCamera = (request) => {
     if (request.method() !== 'HEAD') return;
@@ -83,6 +90,7 @@ test('hiding offline cameras reduces the gallery to a subset with no offline bad
   await page.click('.app__settings-button');
   await page.locator('.modal__option').nth(1).locator('input[type=checkbox]').check();
   await page.click('.modal__close');
+  expect(cspErrors).toEqual([]);
 });
 
 test('camera region filter narrows the gallery', async ({ page }) => {

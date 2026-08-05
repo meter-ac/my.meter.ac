@@ -23,8 +23,15 @@ artifacts are configured in preparation for the pipeline.
 The repository pins Node 24 and pnpm 11 and uses `pnpm-lock.yaml` for frozen,
 reproducible installs.
 
+## Production container runtime — done
+
+The application builds reproducibly in a pinned Node/pnpm builder and runs as
+static output in a pinned unprivileged nginx image for `linux/amd64`. Runtime
+checks cover the read-only filesystem, `/tmp` tmpfs, health endpoint,
+query-string navigation, direct 404 behavior, cache/security headers, legal
+artifacts, and the live application through Playwright.
+
 ## DevOps work still pending
 
-- Add the hardened production container runtime.
 - Add CI validation and Dependabot; no CI pipeline exists yet.
 - Publish trusted preview and production images, then add preview cleanup.
