@@ -48,8 +48,10 @@ Successful `master` runs publish `latest` and a commit-addressed image with
 BuildKit SBOM/provenance and a keyless Cosign signature; `latest` advances only
 after signature verification.
 
-## DevOps work still pending
+## GHCR preview cleanup — done
 
-- Delete all matching GHCR preview versions automatically when a pull request
-  closes, with a safe manual recovery dispatch. Reuse the publisher's
-  `pr-image-N` concurrency group so cleanup waits for any in-flight publication.
+The close workflow deletes package versions carrying a trusted pull request's
+exact `pr-N` or `pr-N-sha-*` tags. Cleanup shares the publisher's queued
+`pr-image-N` concurrency group, never executes pull-request code, refuses mixed
+tags, and supports idempotent manual recovery for any closed pull request
+number, including conflicted PRs whose close workflow is suppressed.

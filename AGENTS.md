@@ -184,8 +184,23 @@ currently no lint, format, or typecheck scripts.
   or digests for rollback. Old workflow reruns must not move `latest` or `pr-N`
   backward. Preview tags intentionally omit attestations and signing.
 - Preview publication is serialized by the `pr-image-N` concurrency group.
-  Closed-PR cleanup must reuse that exact group so deletion follows any in-flight
-  publication for the same pull request.
+  Publication and closed-PR cleanup both use `queue: max` with cancellation
+  disabled, so deletion follows every in-flight or pending publication for the
+  same pull request.
+- `.github/workflows/cleanup-pr-images.yml` runs when a `master` pull request
+  closes and supports manual recovery by closed pull-request number. It never
+  checks out or executes pull-request code and receives only `contents: read`
+  and `packages: write`. Use manual recovery when GitHub suppresses the close
+  workflow for a conflicted pull request.
+- Cleanup paginates active GHCR versions and deletes only version IDs tagged
+  exactly `pr-N` or with the `pr-N-sha-` prefix. It must not use broad retention
+  rules or delete a version carrying unrelated tags. Missing or already-deleted
+  versions are successful no-ops; authorization and public-version download
+  limit failures remain visible.
+- Fork and Dependabot close events are no-ops because current CI cannot publish
+  their previews and their event tokens are read-only. Manual recovery may
+  clean exact tags for any closed pull request, including unexpected historical
+  fork, Dependabot, or non-`master` versions.
 - Third-party Actions must be pinned to full commit SHAs with release comments.
   Dependabot maintains those pins.
 - CI intentionally disables pnpm and BuildKit caches. Do not let untrusted PR
