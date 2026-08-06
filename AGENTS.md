@@ -170,13 +170,27 @@ currently no lint, format, or typecheck scripts.
 - `.github/workflows/ci.yml` runs for pull requests targeting `master`, pushes
   to `master`, and manual dispatches. `Playwright`, `Dependency review`, and
   `Container` are required pull-request checks.
-- The workflow has read-only repository permission. It does not receive secrets,
-  log in to GHCR, or publish packages. Keep write permissions isolated to future
-  trusted publication jobs rather than widening validation permissions.
+- Validation and untrusted-image jobs have read-only repository permission.
+  Fork and Dependabot pull requests build without registry login or publication.
+  Only trusted same-repository preview jobs receive `packages: write`; only the
+  `master` production job also receives `id-token: write` for keyless signing.
+- Trusted pull requests publish `pr-N` and `pr-N-sha-<full-merge-commit>` after
+  validation without replacing existing commit tags. Successful `master` runs
+  build `sha-<full-commit>` with BuildKit SBOM/maximal provenance, sign and
+  verify its digest with Cosign/GitHub OIDC, and only then publish the commit tag
+  and advance `latest`. Workflow dispatch validates without publishing.
+- GHCR images are public at `ghcr.io/meter-ac/my.meter.ac`. Production
+  Watchtower tracks mutable `latest`; deployments can use commit-addressed tags
+  or digests for rollback. Old workflow reruns must not move `latest` or `pr-N`
+  backward. Preview tags intentionally omit attestations and signing.
+- Preview publication is serialized by the `pr-image-N` concurrency group.
+  Closed-PR cleanup must reuse that exact group so deletion follows any in-flight
+  publication for the same pull request.
 - Third-party Actions must be pinned to full commit SHAs with release comments.
   Dependabot maintains those pins.
 - CI intentionally disables pnpm and BuildKit caches. Do not let untrusted PR
-  cache entries become inputs to a trusted image-publication job.
+  cache entries become inputs to a trusted image-publication job. Privileged
+  publication jobs rebuild on clean runners after required validation succeeds.
 - Playwright uses live external services and uploads its report, traces, and
   screenshots for seven days on failure. Container validation builds only
   `linux/amd64`, starts the image with the production hardening flags, and checks

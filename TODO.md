@@ -33,12 +33,23 @@ artifacts, and the live application through Playwright.
 
 ## CI and dependency maintenance — done
 
-Pull requests and `master` run required Playwright, dependency-review, and
-hardened-container checks with read-only permissions and no publication path.
-Untrusted pnpm and Docker caches are disabled. Dependabot checks Actions,
-pnpm-managed dependencies, and Docker bases weekly with a three-day version
-cooldown; security updates remain exempt and pass through the same CI.
+Pull requests run required Playwright, dependency-review, and hardened-container
+checks; `master` reruns Playwright and container validation. Those jobs have
+read-only permissions. Untrusted pnpm and Docker caches are disabled. Dependabot
+checks Actions, pnpm-managed dependencies, and Docker bases weekly with a
+three-day version cooldown; security updates remain exempt and pass through the
+same CI.
+
+## GHCR image publication — done
+
+Trusted pull requests publish public preview images after required validation.
+Fork and Dependabot pull requests build without write access or publication.
+Successful `master` runs publish `latest` and a commit-addressed image with
+BuildKit SBOM/provenance and a keyless Cosign signature; `latest` advances only
+after signature verification.
 
 ## DevOps work still pending
 
-- Publish trusted preview and production images, then add preview cleanup.
+- Delete all matching GHCR preview versions automatically when a pull request
+  closes, with a safe manual recovery dispatch. Reuse the publisher's
+  `pr-image-N` concurrency group so cleanup waits for any in-flight publication.

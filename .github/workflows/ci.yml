@@ -12,6 +12,10 @@ on:
 permissions:
   contents: read
 
+env:
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
+  DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -169,3 +173,378 @@ jobs:
           status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
             "$base_url/does-not-exist")
           test "$status" = 404
+
+  untrusted-image:
+    name: Untrusted image build
+    if: >-
+      github.event_name == 'pull_request' &&
+      (github.event.pull_request.head.repo.full_name != github.repository ||
+      github.event.pull_request.user.login == 'dependabot[bot]')
+    needs:
+      - playwright
+      - dependency-review
+      - container
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Check out tested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Generate image metadata
+        id: metadata
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=pr-${{ github.event.pull_request.number }}
+            type=raw,value=pr-${{ github.event.pull_request.number }}-sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.title=my.meter.ac
+            org.opencontainers.image.description=Map-first web frontend for the METER.AC atmospheric monitoring network
+            org.opencontainers.image.url=https://my.meter.ac/
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.vendor=METER.AC
+            org.opencontainers.image.licenses=Apache-2.0
+          annotations: |
+            org.opencontainers.image.title=my.meter.ac
+            org.opencontainers.image.description=Map-first web frontend for the METER.AC atmospheric monitoring network
+            org.opencontainers.image.url=https://my.meter.ac/
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.vendor=METER.AC
+            org.opencontainers.image.licenses=Apache-2.0
+
+      - name: Build untrusted image without publishing
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          platforms: linux/amd64
+          push: false
+          provenance: false
+          sbom: false
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+
+  preview-image:
+    name: Preview image
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.user.login != 'dependabot[bot]'
+    needs:
+      - playwright
+      - dependency-review
+      - container
+    concurrency:
+      group: pr-image-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write # Publish previews only for trusted same-repository pull requests.
+    steps:
+      - name: Check out tested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - name: Confirm pull request remains open
+        id: pull-request
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          state=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .state)
+          if [ "$state" = open ]; then
+            printf 'open=true\n' >> "$GITHUB_OUTPUT"
+          else
+            printf 'open=false\n' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Docker Buildx
+        if: ${{ steps.pull-request.outputs.open == 'true' }}
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Log in to GHCR
+        if: ${{ steps.pull-request.outputs.open == 'true' }}
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Find existing commit-addressed preview
+        if: ${{ steps.pull-request.outputs.open == 'true' }}
+        id: existing
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMMUTABLE_TAG: ${{ env.IMAGE_NAME }}:pr-${{ github.event.pull_request.number }}-sha-${{ github.sha }}
+        run: |
+          set -euo pipefail
+          error_file=$RUNNER_TEMP/preview-image-lookup.err
+          package_name=${GITHUB_REPOSITORY#*/}
+          if ! gh api "orgs/$GITHUB_REPOSITORY_OWNER/packages/container/$package_name" \
+            --silent 2>"$error_file"; then
+            error=$(<"$error_file")
+            if [[ "$error" == *"HTTP 404"* ]]; then
+              printf 'found=false\n' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            printf '%s\n' "$error" >&2
+            exit 1
+          fi
+
+          for attempt in 1 2 3; do
+            if digest=$(docker buildx imagetools inspect "$IMMUTABLE_TAG" \
+              --format '{{.Manifest.Digest}}' 2>"$error_file"); then
+              printf 'found=true\ndigest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            error=$(<"$error_file")
+            if [[ "$error" == *"manifest unknown"* || "$error" == *"not found"* ||
+              "$error" == *"Not Found"* ]]; then
+              printf 'found=false\n' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              printf '%s\n' "$error" >&2
+              exit 1
+            fi
+            sleep $((attempt * 2))
+          done
+
+      - name: Generate image metadata
+        if: ${{ steps.pull-request.outputs.open == 'true' }}
+        id: metadata
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=pr-${{ github.event.pull_request.number }}
+            type=raw,value=pr-${{ github.event.pull_request.number }}-sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.title=my.meter.ac
+            org.opencontainers.image.description=Map-first web frontend for the METER.AC atmospheric monitoring network
+            org.opencontainers.image.url=https://my.meter.ac/
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.vendor=METER.AC
+            org.opencontainers.image.licenses=Apache-2.0
+          annotations: |
+            org.opencontainers.image.title=my.meter.ac
+            org.opencontainers.image.description=Map-first web frontend for the METER.AC atmospheric monitoring network
+            org.opencontainers.image.url=https://my.meter.ac/
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.vendor=METER.AC
+            org.opencontainers.image.licenses=Apache-2.0
+
+      - name: Build and publish preview image
+        if: >-
+          steps.pull-request.outputs.open == 'true' &&
+          steps.existing.outputs.found != 'true'
+        id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          platforms: linux/amd64
+          outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          provenance: false
+          sbom: false
+          labels: ${{ steps.metadata.outputs.labels }}
+          annotations: ${{ steps.metadata.outputs.annotations }}
+
+      - name: Publish preview tags
+        if: ${{ steps.pull-request.outputs.open == 'true' }}
+        shell: bash
+        env:
+          BUILT_DIGEST: ${{ steps.build.outputs.digest }}
+          EXISTING_DIGEST: ${{ steps.existing.outputs.digest }}
+          FOUND: ${{ steps.existing.outputs.found }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMMUTABLE_TAG: ${{ env.IMAGE_NAME }}:pr-${{ github.event.pull_request.number }}-sha-${{ github.sha }}
+          MUTABLE_TAG: ${{ env.IMAGE_NAME }}:pr-${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          digest=${EXISTING_DIGEST:-$BUILT_DIGEST}
+          test -n "$digest"
+          current_merge_sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" \
+            --jq .merge_commit_sha)
+          pr_state=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .state)
+
+          tags=()
+          if [ "$FOUND" != true ]; then
+            tags+=(--tag "$IMMUTABLE_TAG")
+          fi
+          if [ "$pr_state" = open ] && [ "$current_merge_sha" = "$GITHUB_SHA" ]; then
+            tags+=(--tag "$MUTABLE_TAG")
+          fi
+          if [ "${#tags[@]}" -eq 0 ]; then
+            printf 'Preview revision is no longer current; no tags need updating.\n'
+            exit 0
+          fi
+          docker buildx imagetools create "${tags[@]}" "$IMAGE_NAME@$digest"
+
+  production-image:
+    name: Production image
+    if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
+    needs:
+      - playwright
+      - container
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write # Publish production tags to the repository's GHCR package.
+      id-token: write # Request a GitHub OIDC identity for keyless Cosign signing.
+    steps:
+      - name: Check out tested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Find existing commit-addressed production image
+        id: existing
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMMUTABLE_TAG: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+        run: |
+          set -euo pipefail
+          error_file=$RUNNER_TEMP/production-image-lookup.err
+          package_name=${GITHUB_REPOSITORY#*/}
+          if ! gh api "orgs/$GITHUB_REPOSITORY_OWNER/packages/container/$package_name" \
+            --silent 2>"$error_file"; then
+            error=$(<"$error_file")
+            if [[ "$error" == *"HTTP 404"* ]]; then
+              printf 'found=false\n' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            printf '%s\n' "$error" >&2
+            exit 1
+          fi
+
+          for attempt in 1 2 3; do
+            if digest=$(docker buildx imagetools inspect "$IMMUTABLE_TAG" \
+              --format '{{.Manifest.Digest}}' 2>"$error_file"); then
+              printf 'found=true\ndigest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            error=$(<"$error_file")
+            if [[ "$error" == *"manifest unknown"* || "$error" == *"not found"* ||
+              "$error" == *"Not Found"* ]]; then
+              printf 'found=false\n' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              printf '%s\n' "$error" >&2
+              exit 1
+            fi
+            sleep $((attempt * 2))
+          done
+
+      - name: Generate image metadata
+        id: metadata
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: type=raw,value=sha-${{ github.sha }}
+          labels: |
+            org.opencontainers.image.title=my.meter.ac
+            org.opencontainers.image.description=Map-first web frontend for the METER.AC atmospheric monitoring network
+            org.opencontainers.image.url=https://my.meter.ac/
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.vendor=METER.AC
+            org.opencontainers.image.licenses=Apache-2.0
+          annotations: |
+            org.opencontainers.image.title=my.meter.ac
+            org.opencontainers.image.description=Map-first web frontend for the METER.AC atmospheric monitoring network
+            org.opencontainers.image.url=https://my.meter.ac/
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.vendor=METER.AC
+            org.opencontainers.image.licenses=Apache-2.0
+
+      - name: Build and publish production image
+        if: ${{ steps.existing.outputs.found != 'true' }}
+        id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          platforms: linux/amd64
+          outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
+          provenance: mode=max
+          sbom: true
+          labels: ${{ steps.metadata.outputs.labels }}
+          annotations: ${{ steps.metadata.outputs.annotations }}
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
+      - name: Sign and verify production digest
+        shell: bash
+        env:
+          BUILT_DIGEST: ${{ steps.build.outputs.digest }}
+          CERTIFICATE_IDENTITY: https://github.com/${{ github.workflow_ref }}
+          EXISTING_DIGEST: ${{ steps.existing.outputs.digest }}
+          FOUND: ${{ steps.existing.outputs.found }}
+        run: |
+          set -euo pipefail
+          digest=${EXISTING_DIGEST:-$BUILT_DIGEST}
+          test -n "$digest"
+          if [ "$FOUND" != true ]; then
+            cosign sign --yes "$IMAGE_NAME@$digest"
+          fi
+          cosign verify \
+            --certificate-identity "$CERTIFICATE_IDENTITY" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "$IMAGE_NAME@$digest"
+
+      - name: Publish production tags for the verified digest
+        shell: bash
+        env:
+          BUILT_DIGEST: ${{ steps.build.outputs.digest }}
+          EXISTING_DIGEST: ${{ steps.existing.outputs.digest }}
+          FOUND: ${{ steps.existing.outputs.found }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMMUTABLE_TAG: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
+        run: |
+          set -euo pipefail
+          digest=${EXISTING_DIGEST:-$BUILT_DIGEST}
+          test -n "$digest"
+          current_master_sha=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/master" \
+            --jq .object.sha)
+
+          tags=()
+          if [ "$FOUND" != true ]; then
+            tags+=(--tag "$IMMUTABLE_TAG")
+          fi
+          if [ "$current_master_sha" = "$GITHUB_SHA" ]; then
+            tags+=(--tag "$IMAGE_NAME:latest")
+          fi
+          if [ "${#tags[@]}" -eq 0 ]; then
+            printf 'Production revision is no longer current; no tags need updating.\n'
+            exit 0
+          fi
+          docker buildx imagetools create "${tags[@]}" "$IMAGE_NAME@$digest"

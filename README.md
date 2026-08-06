@@ -70,8 +70,11 @@ and manual dispatches. The required `Playwright`, `Dependency review`, and
 `Container` checks respectively exercise the production Vite build against the
 live services, reject newly introduced high or critical vulnerabilities, and
 build and probe the hardened `linux/amd64` image. Public forks need no secrets.
-CI has read-only repository access, does not log in to a registry, and cannot
-publish packages or images.
+Validation jobs have read-only repository access. Fork and Dependabot pull
+requests rebuild the image after validation without registry credentials,
+write permissions, attestations, or publication. Trusted same-repository pull
+requests publish public previews only after all required checks pass. Manual
+workflow dispatches validate without publishing.
 
 The pnpm store and Docker build cache are deliberately not persisted across CI
 runs so untrusted pull-request cache contents cannot enter a later publication
@@ -90,11 +93,37 @@ otherwise bypass the tile service's caching controls.
 
 ## Deployment
 
-The production artifact is a `linux/amd64` container. A pinned Node 24 builder
-uses the repository's exact pnpm version and frozen lockfile, then a pinned,
-unprivileged nginx runtime serves only the fresh Vite output on port 8080.
-Node, pnpm, source, tests, and development dependencies are not copied into
-the runtime stage.
+The public production image is
+`ghcr.io/meter-ac/my.meter.ac:latest` for `linux/amd64`. Each successful
+`master` run also publishes a commit-addressed `sha-<full-commit>` tag. The
+workflow generates a BuildKit SBOM and maximal provenance, signs the resulting
+digest once with keyless Cosign through GitHub OIDC, verifies that signature,
+and only then creates the commit tag and advances `latest`. Reruns reuse rather
+than replace an existing commit tag. Production Watchtower tracks `latest`;
+use a commit tag or digest for an immutable rollback reference.
+
+Trusted same-repository pull requests publish mutable `pr-N` and commit-
+addressed `pr-N-sha-<full-merge-commit>` preview tags. The mutable tag follows
+new revisions of that pull request, while the commit-addressed tag pins one
+tested merge revision and is never replaced by a rerun. Preview images
+deliberately omit SBOM, provenance, and signatures. Fork and Dependabot pull
+requests never publish images. Rerunning an older workflow cannot move `pr-N`
+or production `latest` backward; rollback uses an explicit commit tag or digest.
+
+Verify a production digest against this repository's `master` workflow with:
+
+```sh
+cosign verify \
+  --certificate-identity https://github.com/meter-ac/my.meter.ac/.github/workflows/ci.yml@refs/heads/master \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  ghcr.io/meter-ac/my.meter.ac@sha256:DIGEST
+```
+
+The image uses a pinned Node 24 builder with the repository's exact pnpm
+version and frozen lockfile, then a pinned, unprivileged nginx runtime serves
+only the fresh Vite output on port 8080. Node, pnpm, source, tests, and
+development dependencies are not copied into the runtime stage. Build and run
+the same container locally with:
 
 ```sh
 docker build --platform linux/amd64 -t my-meter-ac:local .
@@ -109,7 +138,7 @@ docker run --rm \
 
 The health endpoint is `http://127.0.0.1:8080/healthz`. Production must retain
 the read-only root and writable `/tmp` tmpfs contract shown above. CI validates
-this image on every event but does not publish it yet.
+this image on every event before any eligible trusted publication job runs.
 
 - **Navigation is query-string based.** `?node=N06` and `?view=table` remain
   requests for `/`. nginx deliberately has no SPA fallback; unknown paths and
