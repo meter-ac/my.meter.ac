@@ -1,0 +1,195 @@
+name: Cleanup PR images
+
+on:
+  pull_request:
+    branches:
+      - master
+    types:
+      - closed
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: Closed pull request number to clean up
+        required: true
+        type: number
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    name: Cleanup PR images
+    concurrency:
+      group: pr-image-${{ github.event.pull_request.number || github.event.number || inputs.pr_number }}
+      cancel-in-progress: false
+      queue: max
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write # Delete exact tagged preview versions from the linked GHCR package.
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number || github.event.number || inputs.pr_number }}
+    steps:
+      - name: Validate cleanup target
+        id: target
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+            printf 'Invalid pull request number: %s\n' "$PR_NUMBER" >&2
+            exit 1
+          fi
+
+          pull_request=$(gh api \
+            -H 'Accept: application/vnd.github+json' \
+            -H 'X-GitHub-Api-Version: 2022-11-28' \
+            "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER")
+          state=$(jq -r '.state' <<< "$pull_request")
+          if [ "$state" != closed ]; then
+            printf 'Pull request #%s is %s; refusing to remove an active preview.\n' \
+              "$PR_NUMBER" "$state" >&2
+            exit 1
+          fi
+
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then
+            base=$(jq -r '.base.ref' <<< "$pull_request")
+            head_repository=$(jq -r '.head.repo.full_name // ""' <<< "$pull_request")
+            author=$(jq -r '.user.login' <<< "$pull_request")
+            if [ "$base" != master ] || [ "$head_repository" != "$GITHUB_REPOSITORY" ] || \
+              [ "$author" = 'dependabot[bot]' ]; then
+              printf 'PR #%s could not publish a preview through the current workflow; nothing to clean.\n' \
+                "$PR_NUMBER"
+              printf 'cleanup=false\n' >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+
+          printf 'Cleaning preview versions for closed PR #%s.\n' "$PR_NUMBER"
+          printf 'cleanup=true\n' >> "$GITHUB_OUTPUT"
+
+      - name: Delete matching package versions
+        if: ${{ steps.target.outputs.cleanup == 'true' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          package_name=${GITHUB_REPOSITORY#*/}
+          versions_endpoint="orgs/$GITHUB_REPOSITORY_OWNER/packages/container/$package_name/versions"
+          exact_tag="pr-$PR_NUMBER"
+          tag_prefix="pr-$PR_NUMBER-sha-"
+          versions_file=$RUNNER_TEMP/package-versions.json
+          matches_file=$RUNNER_TEMP/matching-package-versions.json
+          remaining_file=$RUNNER_TEMP/remaining-package-versions.json
+          api_headers=(
+            -H 'Accept: application/vnd.github+json'
+            -H 'X-GitHub-Api-Version: 2022-11-28'
+          )
+
+          fetch_versions() {
+            local destination=$1
+            local error_file=${destination}.err
+            local pages_file=${destination}.pages
+            local error
+
+            if ! gh api "${api_headers[@]}" \
+              --method GET \
+              --paginate \
+              --slurp \
+              -f per_page=100 \
+              -f state=active \
+              "$versions_endpoint" > "$pages_file" 2> "$error_file"; then
+              error=$(< "$error_file")
+              if [[ "$error" == *'HTTP 404'* ]]; then
+                printf 'Container package is absent; cleanup is already complete.\n'
+                printf '[]\n' > "$destination"
+                return
+              fi
+              printf '%s\n' "$error" >&2
+              return 1
+            fi
+
+            jq 'add // []' "$pages_file" > "$destination"
+          }
+
+          select_matches() {
+            local source=$1
+            local destination=$2
+            jq \
+              --arg exact "$exact_tag" \
+              --arg prefix "$tag_prefix" \
+              'map(select(any(.metadata.container.tags[]?;
+                . == $exact or startswith($prefix))))' \
+              "$source" > "$destination"
+          }
+
+          fetch_versions "$versions_file"
+          select_matches "$versions_file" "$matches_file"
+
+          match_count=$(jq 'length' "$matches_file")
+          if [ "$match_count" -eq 0 ]; then
+            printf 'No active package versions match PR #%s; cleanup is already complete.\n' \
+              "$PR_NUMBER"
+            exit 0
+          fi
+
+          if jq -e \
+            --arg exact "$exact_tag" \
+            --arg prefix "$tag_prefix" \
+            'any(.[]; any(.metadata.container.tags[]?;
+              (((. == $exact) or startswith($prefix)) | not)))' \
+            "$matches_file" > /dev/null; then
+            printf 'Refusing to delete a matched version carrying unrelated tags:\n' >&2
+            jq -r \
+              '.[] | "version_id=\(.id) digest=\(.name) tags=\(.metadata.container.tags | join(","))"' \
+              "$matches_file" >&2
+            exit 1
+          fi
+
+          state=$(gh api "${api_headers[@]}" \
+            "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" \
+            --jq .state)
+          if [ "$state" != closed ]; then
+            printf 'Pull request #%s was reopened; refusing to remove its preview.\n' \
+              "$PR_NUMBER" >&2
+            exit 1
+          fi
+
+          printf 'Matched package versions:\n'
+          jq -r \
+            '.[] | "version_id=\(.id) digest=\(.name) tags=\(.metadata.container.tags | join(","))"' \
+            "$matches_file"
+
+          while IFS= read -r version_id; do
+            error_file=$RUNNER_TEMP/delete-package-version-$version_id.err
+            if ! gh api "${api_headers[@]}" \
+              --method DELETE \
+              --silent \
+              "$versions_endpoint/$version_id" 2> "$error_file"; then
+              error=$(< "$error_file")
+              if [[ "$error" == *'HTTP 404'* ]]; then
+                printf 'Package version %s was already deleted.\n' "$version_id"
+                continue
+              fi
+              printf '%s\n' "$error" >&2
+              exit 1
+            fi
+            printf 'Deleted package version %s.\n' "$version_id"
+          done < <(jq -r '.[].id' "$matches_file")
+
+          fetch_versions "$remaining_file"
+          select_matches "$remaining_file" "$matches_file"
+          if [ "$(jq 'length' "$matches_file")" -ne 0 ]; then
+            printf 'Matching package versions remain after cleanup:\n' >&2
+            jq -r \
+              '.[] | "version_id=\(.id) digest=\(.name) tags=\(.metadata.container.tags | join(","))"' \
+              "$matches_file" >&2
+            exit 1
+          fi
+
+          printf 'All tagged preview versions for PR #%s were removed.\n' "$PR_NUMBER"

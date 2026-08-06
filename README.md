@@ -110,6 +110,20 @@ deliberately omit SBOM, provenance, and signatures. Fork and Dependabot pull
 requests never publish images. Rerunning an older workflow cannot move `pr-N`
 or production `latest` backward; rollback uses an explicit commit tag or digest.
 
+Closing a trusted pull request runs cleanup for all of its tagged preview
+versions. A container already running from that image can continue until it is
+stopped, but the image cannot be pulled again or used to recreate the service.
+Preview operators should therefore remove the corresponding service when
+closing its pull request. If GitHub suppresses the close workflow for a
+conflicted pull request or automatic cleanup otherwise needs recovery, dispatch
+the `Cleanup PR images` workflow with any closed pull request number; repeating
+cleanup is a safe no-op. The recovery path can also remove unexpected
+historical tags for a fork, Dependabot, or non-`master` pull request even though
+current CI never publishes those previews. Cleanup refuses to delete a version
+that also carries an unrelated tag. GitHub prevents deletion of a public
+package version after 5,000 downloads, in which case cleanup fails visibly and
+requires GitHub Support.
+
 Verify a production digest against this repository's `master` workflow with:
 
 ```sh
