@@ -14,7 +14,7 @@ permissions:
 
 env:
   IMAGE_NAME: ghcr.io/${{ github.repository }}
-  DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
+  DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -213,6 +213,13 @@ jobs:
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
             org.opencontainers.image.vendor=METER.AC
             org.opencontainers.image.licenses=Apache-2.0
+          annotations: |
+            org.opencontainers.image.title=my.meter.ac
+            org.opencontainers.image.description=Map-first web frontend for the METER.AC atmospheric monitoring network
+            org.opencontainers.image.url=https://my.meter.ac/
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.vendor=METER.AC
+            org.opencontainers.image.licenses=Apache-2.0
 
       - name: Build untrusted image without publishing
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
@@ -328,6 +335,13 @@ jobs:
             type=raw,value=pr-${{ github.event.pull_request.number }}
             type=raw,value=pr-${{ github.event.pull_request.number }}-sha-${{ github.sha }}
           labels: |
+            org.opencontainers.image.title=my.meter.ac
+            org.opencontainers.image.description=Map-first web frontend for the METER.AC atmospheric monitoring network
+            org.opencontainers.image.url=https://my.meter.ac/
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.vendor=METER.AC
+            org.opencontainers.image.licenses=Apache-2.0
+          annotations: |
             org.opencontainers.image.title=my.meter.ac
             org.opencontainers.image.description=Map-first web frontend for the METER.AC atmospheric monitoring network
             org.opencontainers.image.url=https://my.meter.ac/
@@ -458,6 +472,13 @@ jobs:
           images: ${{ env.IMAGE_NAME }}
           tags: type=raw,value=sha-${{ github.sha }}
           labels: |
+            org.opencontainers.image.title=my.meter.ac
+            org.opencontainers.image.description=Map-first web frontend for the METER.AC atmospheric monitoring network
+            org.opencontainers.image.url=https://my.meter.ac/
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.vendor=METER.AC
+            org.opencontainers.image.licenses=Apache-2.0
+          annotations: |
             org.opencontainers.image.title=my.meter.ac
             org.opencontainers.image.description=Map-first web frontend for the METER.AC atmospheric monitoring network
             org.opencontainers.image.url=https://my.meter.ac/
