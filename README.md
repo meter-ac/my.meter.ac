@@ -29,10 +29,13 @@ See [AGENTS.md](./AGENTS.md) for the architecture and data-source reference.
 
 ## Development
 
-Use the Node.js 24 release pinned in `.node-version` and the exact pnpm 11
-release declared by `packageManager` in `package.json`:
+Use the exact Node.js 24 release pinned by the digest-pinned `build` stage in
+`Dockerfile` and the exact pnpm 11 release declared by `packageManager` in
+`package.json`. Print the Node version expected by CI with
+`scripts/ci/read-node-version.sh`:
 
 ```sh
+scripts/ci/read-node-version.sh
 pnpm install --frozen-lockfile
 pnpm dev
 ```
@@ -69,12 +72,12 @@ GitHub Actions runs on pull requests targeting `master`, pushes to `master`,
 and manual dispatches. The required `Playwright`, `Dependency review`, and
 `Container` checks respectively exercise the production Vite build against the
 live services, reject newly introduced high or critical vulnerabilities, and
-build and probe the hardened `linux/amd64` image. Public forks need no secrets.
-Validation jobs have read-only repository access. Fork and Dependabot pull
-requests rebuild the image after validation without registry credentials,
-write permissions, attestations, or publication. Trusted same-repository pull
-requests publish public previews only after all required checks pass. Manual
-workflow dispatches validate without publishing.
+lint the CI shell helpers before building and probing the hardened
+`linux/amd64` image. Public forks need no secrets. Validation jobs have
+read-only repository access. Fork and Dependabot pull requests perform that
+single uncredentialed image build without publication. Trusted same-repository
+pull requests publish public previews only after all required checks pass.
+Manual workflow dispatches validate without publishing.
 
 The pnpm store and Docker build cache are deliberately not persisted across CI
 runs so untrusted pull-request cache contents cannot enter a later publication
@@ -99,8 +102,10 @@ The public production image is
 workflow generates a BuildKit SBOM and maximal provenance, signs the resulting
 digest once with keyless Cosign through GitHub OIDC, verifies that signature,
 and only then creates the commit tag and advances `latest`. Reruns reuse rather
-than replace an existing commit tag. Production Watchtower tracks `latest`;
-use a commit tag or digest for an immutable rollback reference.
+than replace an existing commit tag, after confirming its revision and platform
+metadata. The production deployment contract has Watchtower track `latest`;
+use a commit tag or digest for an immutable rollback reference. Production
+cutover remains an operations-owned task outside this repository.
 
 Trusted same-repository pull requests publish mutable `pr-N` and commit-
 addressed `pr-N-sha-<full-merge-commit>` preview tags. The mutable tag follows
@@ -149,6 +154,10 @@ docker run --rm \
   -p 8080:8080 \
   my-meter-ac:local
 ```
+
+Run the same deterministic runtime probes as CI with
+`scripts/ci/validate-container.sh my-meter-ac:local linux/amd64`. Shell helpers
+must pass `shellcheck scripts/ci/*.sh`.
 
 The health endpoint is `http://127.0.0.1:8080/healthz`. Production must retain
 the read-only root and writable `/tmp` tmpfs contract shown above. CI validates

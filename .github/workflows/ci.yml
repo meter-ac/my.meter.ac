@@ -14,15 +14,22 @@ permissions:
 
 env:
   IMAGE_NAME: ghcr.io/${{ github.repository }}
+  IMAGE_PLATFORM: linux/amd64
   DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  OCI_METADATA: |
+    org.opencontainers.image.title=my.meter.ac
+    org.opencontainers.image.description=Map-first web frontend for the METER.AC atmospheric monitoring network
+    org.opencontainers.image.url=https://my.meter.ac/
+    org.opencontainers.image.source=https://github.com/${{ github.repository }}
+    org.opencontainers.image.vendor=METER.AC
+    org.opencontainers.image.licenses=Apache-2.0
 
 jobs:
   playwright:
     name: Playwright
+    concurrency:
+      group: validation-playwright-${{ github.event.pull_request.number || github.run_id }}
+      cancel-in-progress: true
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -34,7 +41,7 @@ jobs:
       - name: Read Node.js version
         id: node-version
         shell: bash
-        run: printf 'version=%s\n' "$(< .node-version)" >> "$GITHUB_OUTPUT"
+        run: printf 'version=%s\n' "$(scripts/ci/read-node-version.sh)" >> "$GITHUB_OUTPUT"
 
       - name: Set up pnpm and Node.js
         uses: pnpm/setup@c9883cc79df532ad1a7b81bf9ab944ceb090d65c # v2.0.0
@@ -66,6 +73,9 @@ jobs:
   dependency-review:
     name: Dependency review
     if: ${{ github.event_name == 'pull_request' }}
+    concurrency:
+      group: validation-dependency-review-${{ github.event.pull_request.number || github.run_id }}
+      cancel-in-progress: true
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -83,6 +93,9 @@ jobs:
 
   container:
     name: Container
+    concurrency:
+      group: validation-container-${{ github.event.pull_request.number || github.run_id }}
+      cancel-in-progress: true
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -91,146 +104,20 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Check Dockerfile
-        run: docker build --check .
+      - name: Lint shell helpers
+        run: shellcheck scripts/ci/*.sh
+
+      - name: Check container policy
+        run: |
+          scripts/ci/read-node-version.sh
+          scripts/ci/check-runtime-notices.sh
+          docker build --check .
 
       - name: Build image
-        run: docker build --platform linux/amd64 --tag my-meter-ac:ci .
+        run: docker build --platform "$IMAGE_PLATFORM" --tag my-meter-ac:ci .
 
       - name: Validate runtime
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          image=my-meter-ac:ci
-          container=my-meter-ac-ci
-          base_url=http://127.0.0.1:8080
-          work_dir=$(mktemp -d)
-
-          cleanup() {
-            result=$?
-            if [ "$result" -ne 0 ]; then
-              docker logs "$container" 2>/dev/null || true
-            fi
-            docker rm --force "$container" >/dev/null 2>&1 || true
-            rm -rf "$work_dir"
-            exit "$result"
-          }
-          trap cleanup EXIT
-
-          test "$(docker image inspect --format '{{.Architecture}}' "$image")" = amd64
-          docker run --detach \
-            --name "$container" \
-            --read-only \
-            --tmpfs /tmp:rw,noexec,nosuid,nodev,size=16m \
-            --cap-drop ALL \
-            --security-opt no-new-privileges \
-            --publish 127.0.0.1:8080:8080 \
-            "$image"
-
-          health=starting
-          for _ in {1..45}; do
-            health=$(docker inspect --format '{{.State.Health.Status}}' "$container")
-            case "$health" in
-              healthy) break ;;
-              unhealthy) exit 1 ;;
-            esac
-            sleep 2
-          done
-          test "$health" = healthy
-
-          curl --fail --silent --show-error \
-            --dump-header "$work_dir/root.headers" \
-            --output "$work_dir/root.html" \
-            "$base_url/"
-          grep -q '<div id="root"></div>' "$work_dir/root.html"
-          grep -Eqi '^Cache-Control: no-cache' "$work_dir/root.headers"
-          grep -Eqi '^Content-Security-Policy: .+' "$work_dir/root.headers"
-          grep -Eqi '^Permissions-Policy: .+' "$work_dir/root.headers"
-          grep -Eqi '^Referrer-Policy: origin' "$work_dir/root.headers"
-          grep -Eqi '^X-Content-Type-Options: nosniff' "$work_dir/root.headers"
-          grep -Eqi '^X-Frame-Options: DENY' "$work_dir/root.headers"
-
-          for path in '/?view=table' '/?node=N06'; do
-            curl --fail --silent --show-error --output /dev/null "$base_url$path"
-          done
-
-          curl --fail --silent --show-error \
-            --dump-header "$work_dir/health.headers" \
-            --output "$work_dir/health.txt" \
-            "$base_url/healthz"
-          grep -qx 'ok' "$work_dir/health.txt"
-          grep -Eqi '^Cache-Control: no-store' "$work_dir/health.headers"
-
-          asset_path=$(grep -oE '/assets/[^" ]+\.js' "$work_dir/root.html" | sed -n '1p')
-          test -n "$asset_path"
-          curl --fail --silent --show-error \
-            --dump-header "$work_dir/asset.headers" \
-            --output /dev/null \
-            "$base_url$asset_path"
-          grep -Eqi '^Cache-Control: public, max-age=31536000, immutable' "$work_dir/asset.headers"
-
-          status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
-            "$base_url/does-not-exist")
-          test "$status" = 404
-
-  untrusted-image:
-    name: Untrusted image build
-    if: >-
-      github.event_name == 'pull_request' &&
-      (github.event.pull_request.head.repo.full_name != github.repository ||
-      github.event.pull_request.user.login == 'dependabot[bot]')
-    needs:
-      - playwright
-      - dependency-review
-      - container
-    runs-on: ubuntu-24.04
-    timeout-minutes: 15
-    permissions:
-      contents: read
-    steps:
-      - name: Check out tested revision
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-          ref: ${{ github.sha }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
-
-      - name: Generate image metadata
-        id: metadata
-        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
-        with:
-          images: ${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=pr-${{ github.event.pull_request.number }}
-            type=raw,value=pr-${{ github.event.pull_request.number }}-sha-${{ github.sha }}
-          labels: |
-            org.opencontainers.image.title=my.meter.ac
-            org.opencontainers.image.description=Map-first web frontend for the METER.AC atmospheric monitoring network
-            org.opencontainers.image.url=https://my.meter.ac/
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.vendor=METER.AC
-            org.opencontainers.image.licenses=Apache-2.0
-          annotations: |
-            org.opencontainers.image.title=my.meter.ac
-            org.opencontainers.image.description=Map-first web frontend for the METER.AC atmospheric monitoring network
-            org.opencontainers.image.url=https://my.meter.ac/
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.vendor=METER.AC
-            org.opencontainers.image.licenses=Apache-2.0
-
-      - name: Build untrusted image without publishing
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
-        with:
-          context: .
-          platforms: linux/amd64
-          push: false
-          provenance: false
-          sbom: false
-          tags: ${{ steps.metadata.outputs.tags }}
-          labels: ${{ steps.metadata.outputs.labels }}
+        run: scripts/ci/validate-container.sh my-meter-ac:ci "$IMAGE_PLATFORM"
 
   preview-image:
     name: Preview image
@@ -290,41 +177,19 @@ jobs:
         id: existing
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           IMMUTABLE_TAG: ${{ env.IMAGE_NAME }}:pr-${{ github.event.pull_request.number }}-sha-${{ github.sha }}
         run: |
           set -euo pipefail
-          error_file=$RUNNER_TEMP/preview-image-lookup.err
-          package_name=${GITHUB_REPOSITORY#*/}
-          if ! gh api "orgs/$GITHUB_REPOSITORY_OWNER/packages/container/$package_name" \
-            --silent 2>"$error_file"; then
-            error=$(<"$error_file")
-            if [[ "$error" == *"HTTP 404"* ]]; then
-              printf 'found=false\n' >> "$GITHUB_OUTPUT"
-              exit 0
+          if digest=$(scripts/ci/find-existing-image.sh \
+            "$IMMUTABLE_TAG" "$GITHUB_SHA" "$IMAGE_PLATFORM"); then
+            printf 'found=true\ndigest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
+          else
+            result=$?
+            if [ "$result" -ne 3 ]; then
+              exit "$result"
             fi
-            printf '%s\n' "$error" >&2
-            exit 1
+            printf 'found=false\n' >> "$GITHUB_OUTPUT"
           fi
-
-          for attempt in 1 2 3; do
-            if digest=$(docker buildx imagetools inspect "$IMMUTABLE_TAG" \
-              --format '{{.Manifest.Digest}}' 2>"$error_file"); then
-              printf 'found=true\ndigest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            error=$(<"$error_file")
-            if [[ "$error" == *"manifest unknown"* || "$error" == *"not found"* ||
-              "$error" == *"Not Found"* ]]; then
-              printf 'found=false\n' >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            if [ "$attempt" -eq 3 ]; then
-              printf '%s\n' "$error" >&2
-              exit 1
-            fi
-            sleep $((attempt * 2))
-          done
 
       - name: Generate image metadata
         if: ${{ steps.pull-request.outputs.open == 'true' }}
@@ -335,20 +200,8 @@ jobs:
           tags: |
             type=raw,value=pr-${{ github.event.pull_request.number }}
             type=raw,value=pr-${{ github.event.pull_request.number }}-sha-${{ github.sha }}
-          labels: |
-            org.opencontainers.image.title=my.meter.ac
-            org.opencontainers.image.description=Map-first web frontend for the METER.AC atmospheric monitoring network
-            org.opencontainers.image.url=https://my.meter.ac/
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.vendor=METER.AC
-            org.opencontainers.image.licenses=Apache-2.0
-          annotations: |
-            org.opencontainers.image.title=my.meter.ac
-            org.opencontainers.image.description=Map-first web frontend for the METER.AC atmospheric monitoring network
-            org.opencontainers.image.url=https://my.meter.ac/
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.vendor=METER.AC
-            org.opencontainers.image.licenses=Apache-2.0
+          labels: ${{ env.OCI_METADATA }}
+          annotations: ${{ env.OCI_METADATA }}
 
       - name: Build and publish preview image
         if: >-
@@ -358,7 +211,7 @@ jobs:
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
-          platforms: linux/amd64
+          platforms: ${{ env.IMAGE_PLATFORM }}
           outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
           provenance: false
           sbom: false
@@ -380,13 +233,27 @@ jobs:
           set -euo pipefail
           digest=${EXISTING_DIGEST:-$BUILT_DIGEST}
           test -n "$digest"
-          current_merge_sha=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" \
-            --jq .merge_commit_sha)
-          pr_state=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" --jq .state)
+          read -r pr_state current_merge_sha < <(
+            gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" \
+              --jq '[.state, .merge_commit_sha] | @tsv'
+          )
 
           tags=()
           if [ "$FOUND" != true ]; then
-            tags+=(--tag "$IMMUTABLE_TAG")
+            if immutable_digest=$(scripts/ci/find-existing-image.sh \
+              "$IMMUTABLE_TAG" "$GITHUB_SHA" "$IMAGE_PLATFORM"); then
+              if [ "$immutable_digest" != "$digest" ]; then
+                printf 'Refusing to replace %s at conflicting digest %s.\n' \
+                  "$IMMUTABLE_TAG" "$immutable_digest" >&2
+                exit 1
+              fi
+            else
+              result=$?
+              if [ "$result" -ne 3 ]; then
+                exit "$result"
+              fi
+              tags+=(--tag "$IMMUTABLE_TAG")
+            fi
           fi
           if [ "$pr_state" = open ] && [ "$current_merge_sha" = "$GITHUB_SHA" ]; then
             tags+=(--tag "$MUTABLE_TAG")
@@ -403,6 +270,10 @@ jobs:
     needs:
       - playwright
       - container
+    concurrency:
+      group: production-image
+      cancel-in-progress: false
+      queue: max
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
@@ -430,41 +301,19 @@ jobs:
         id: existing
         shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           IMMUTABLE_TAG: ${{ env.IMAGE_NAME }}:sha-${{ github.sha }}
         run: |
           set -euo pipefail
-          error_file=$RUNNER_TEMP/production-image-lookup.err
-          package_name=${GITHUB_REPOSITORY#*/}
-          if ! gh api "orgs/$GITHUB_REPOSITORY_OWNER/packages/container/$package_name" \
-            --silent 2>"$error_file"; then
-            error=$(<"$error_file")
-            if [[ "$error" == *"HTTP 404"* ]]; then
-              printf 'found=false\n' >> "$GITHUB_OUTPUT"
-              exit 0
+          if digest=$(scripts/ci/find-existing-image.sh \
+            "$IMMUTABLE_TAG" "$GITHUB_SHA" "$IMAGE_PLATFORM"); then
+            printf 'found=true\ndigest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
+          else
+            result=$?
+            if [ "$result" -ne 3 ]; then
+              exit "$result"
             fi
-            printf '%s\n' "$error" >&2
-            exit 1
+            printf 'found=false\n' >> "$GITHUB_OUTPUT"
           fi
-
-          for attempt in 1 2 3; do
-            if digest=$(docker buildx imagetools inspect "$IMMUTABLE_TAG" \
-              --format '{{.Manifest.Digest}}' 2>"$error_file"); then
-              printf 'found=true\ndigest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            error=$(<"$error_file")
-            if [[ "$error" == *"manifest unknown"* || "$error" == *"not found"* ||
-              "$error" == *"Not Found"* ]]; then
-              printf 'found=false\n' >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            if [ "$attempt" -eq 3 ]; then
-              printf '%s\n' "$error" >&2
-              exit 1
-            fi
-            sleep $((attempt * 2))
-          done
 
       - name: Generate image metadata
         id: metadata
@@ -472,20 +321,8 @@ jobs:
         with:
           images: ${{ env.IMAGE_NAME }}
           tags: type=raw,value=sha-${{ github.sha }}
-          labels: |
-            org.opencontainers.image.title=my.meter.ac
-            org.opencontainers.image.description=Map-first web frontend for the METER.AC atmospheric monitoring network
-            org.opencontainers.image.url=https://my.meter.ac/
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.vendor=METER.AC
-            org.opencontainers.image.licenses=Apache-2.0
-          annotations: |
-            org.opencontainers.image.title=my.meter.ac
-            org.opencontainers.image.description=Map-first web frontend for the METER.AC atmospheric monitoring network
-            org.opencontainers.image.url=https://my.meter.ac/
-            org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.vendor=METER.AC
-            org.opencontainers.image.licenses=Apache-2.0
+          labels: ${{ env.OCI_METADATA }}
+          annotations: ${{ env.OCI_METADATA }}
 
       - name: Build and publish production image
         if: ${{ steps.existing.outputs.found != 'true' }}
@@ -493,7 +330,7 @@ jobs:
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
-          platforms: linux/amd64
+          platforms: ${{ env.IMAGE_PLATFORM }}
           outputs: type=image,name=${{ env.IMAGE_NAME }},push-by-digest=true,name-canonical=true,push=true
           provenance: mode=max
           sbom: true
@@ -539,7 +376,20 @@ jobs:
 
           tags=()
           if [ "$FOUND" != true ]; then
-            tags+=(--tag "$IMMUTABLE_TAG")
+            if immutable_digest=$(scripts/ci/find-existing-image.sh \
+              "$IMMUTABLE_TAG" "$GITHUB_SHA" "$IMAGE_PLATFORM"); then
+              if [ "$immutable_digest" != "$digest" ]; then
+                printf 'Refusing to replace %s at conflicting digest %s.\n' \
+                  "$IMMUTABLE_TAG" "$immutable_digest" >&2
+                exit 1
+              fi
+            else
+              result=$?
+              if [ "$result" -ne 3 ]; then
+                exit "$result"
+              fi
+              tags+=(--tag "$IMMUTABLE_TAG")
+            fi
           fi
           if [ "$current_master_sha" = "$GITHUB_SHA" ]; then
             tags+=(--tag "$IMAGE_NAME:latest")
