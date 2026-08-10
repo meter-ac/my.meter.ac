@@ -181,7 +181,7 @@ jobs:
         run: |
           set -euo pipefail
           if digest=$(scripts/ci/find-existing-image.sh \
-            "$IMMUTABLE_TAG" "$GITHUB_SHA" "$IMAGE_PLATFORM"); then
+            "$IMMUTABLE_TAG" "$GITHUB_SHA" "$IMAGE_PLATFORM" 1); then
             printf 'found=true\ndigest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
           else
             result=$?
@@ -229,13 +229,14 @@ jobs:
           IMMUTABLE_TAG: ${{ env.IMAGE_NAME }}:pr-${{ github.event.pull_request.number }}-sha-${{ github.sha }}
           MUTABLE_TAG: ${{ env.IMAGE_NAME }}:pr-${{ github.event.pull_request.number }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          TESTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           digest=${EXISTING_DIGEST:-$BUILT_DIGEST}
           test -n "$digest"
-          read -r pr_state current_merge_sha < <(
+          read -r pr_state current_head_sha < <(
             gh api "repos/$GITHUB_REPOSITORY/pulls/$PR_NUMBER" \
-              --jq '[.state, .merge_commit_sha] | @tsv'
+              --jq '[.state, .head.sha] | @tsv'
           )
 
           tags=()
@@ -255,11 +256,15 @@ jobs:
               tags+=(--tag "$IMMUTABLE_TAG")
             fi
           fi
-          if [ "$pr_state" = open ] && [ "$current_merge_sha" = "$GITHUB_SHA" ]; then
+          if [ "$pr_state" != open ]; then
+            printf 'Pull request is no longer open; mutable preview tag not updated.\n'
+          elif [ "$current_head_sha" != "$TESTED_HEAD_SHA" ]; then
+            printf 'Pull request head advanced; mutable preview tag not updated.\n'
+          else
             tags+=(--tag "$MUTABLE_TAG")
           fi
           if [ "${#tags[@]}" -eq 0 ]; then
-            printf 'Preview revision is no longer current; no tags need updating.\n'
+            printf 'No preview tags need updating.\n'
             exit 0
           fi
           docker buildx imagetools create "${tags[@]}" "$IMAGE_NAME@$digest"
@@ -305,7 +310,7 @@ jobs:
         run: |
           set -euo pipefail
           if digest=$(scripts/ci/find-existing-image.sh \
-            "$IMMUTABLE_TAG" "$GITHUB_SHA" "$IMAGE_PLATFORM"); then
+            "$IMMUTABLE_TAG" "$GITHUB_SHA" "$IMAGE_PLATFORM" 1); then
             printf 'found=true\ndigest=%s\n' "$digest" >> "$GITHUB_OUTPUT"
           else
             result=$?

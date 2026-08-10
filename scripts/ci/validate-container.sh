@@ -9,6 +9,15 @@ fi
 
 image=$1
 expected_platform=${2:-linux/amd64}
+allow_http_health_fallback=${ALLOW_HTTP_HEALTH_FALLBACK:-false}
+if [ "$allow_http_health_fallback" != false ] && [ "$allow_http_health_fallback" != true ]; then
+  printf 'ALLOW_HTTP_HEALTH_FALLBACK must be true or false.\n' >&2
+  exit 1
+fi
+if [ "${CI:-false}" = true ] && [ "$allow_http_health_fallback" = true ]; then
+  printf 'HTTP health fallback must not be enabled in CI.\n' >&2
+  exit 1
+fi
 container="my-meter-ac-ci-$PPID-$RANDOM"
 work_dir=$(mktemp -d)
 
@@ -66,7 +75,8 @@ for _ in {1..45}; do
   fi
   health=$(jq -r '.[0].State.Health.Status // "unsupported"' <<< "$state")
   if [ "$health" = unsupported ]; then
-    if [ "${ALLOW_HTTP_HEALTH_FALLBACK:-false}" != true ]; then
+    # Local Podman APIs can omit Docker health status; CI must validate it directly.
+    if [ "$allow_http_health_fallback" != true ]; then
       printf 'Runtime does not expose the image health-check status.\n' >&2
       exit 1
     fi
@@ -83,6 +93,31 @@ for _ in {1..45}; do
 done
 if [ "$health" != healthy ]; then
   printf 'Container health remained %s.\n' "$health" >&2
+  exit 1
+fi
+
+for command in node pnpm; do
+  if docker exec "$container" sh -c \
+    'command -v "$1" >/dev/null 2>&1' sh "$command"; then
+    printf 'Runtime unexpectedly contains %s.\n' "$command" >&2
+    exit 1
+  fi
+done
+
+for path in /app /src /tests /.git /playwright-report /test-results; do
+  if docker exec "$container" sh -c 'test -e "$1"' sh "$path"; then
+    printf 'Runtime unexpectedly contains %s.\n' "$path" >&2
+    exit 1
+  fi
+done
+
+web_root_entries=$(docker exec "$container" sh -c \
+  'ls -1A /usr/share/nginx/html | sort')
+expected_web_root_entries=$(printf '%s\n' \
+  LICENSE.txt NOTICE.txt THIRD_PARTY_NOTICES.txt assets index.html)
+if [ "$web_root_entries" != "$expected_web_root_entries" ]; then
+  printf 'Unexpected files in the runtime web root:\n%s\n' \
+    "$web_root_entries" >&2
   exit 1
 fi
 

@@ -2,14 +2,20 @@
 
 set -euo pipefail
 
-if [ "$#" -ne 3 ]; then
-  printf 'Usage: %s IMAGE_REF EXPECTED_REVISION EXPECTED_PLATFORM\n' "$0" >&2
+if [ "$#" -lt 3 ] || [ "$#" -gt 4 ]; then
+  printf 'Usage: %s IMAGE_REF EXPECTED_REVISION EXPECTED_PLATFORM [NOT_FOUND_ATTEMPTS]\n' \
+    "$0" >&2
   exit 1
 fi
 
 image_ref=$1
 expected_revision=$2
 expected_platform=$3
+not_found_attempts=${4:-3}
+if [[ ! "$not_found_attempts" =~ ^[1-3]$ ]]; then
+  printf 'NOT_FOUND_ATTEMPTS must be between 1 and 3.\n' >&2
+  exit 1
+fi
 error_file=$(mktemp)
 trap 'rm -f "$error_file"' EXIT
 
@@ -50,8 +56,8 @@ for attempt in 1 2 3; do
   error=$(<"$error_file")
   if [[ "$error" == *"manifest unknown"* || "$error" == *"not found"* ||
     "$error" == *"Not Found"* ]]; then
-    if [ "$attempt" -eq 3 ]; then
-      printf 'Image %s does not exist after %s checks.\n' \
+    if [ "$attempt" -ge "$not_found_attempts" ]; then
+      printf 'No existing image found at %s after %s check(s).\n' \
         "$image_ref" "$attempt" >&2
       exit 3
     fi

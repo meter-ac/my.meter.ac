@@ -163,8 +163,8 @@ configuration.
 Set `PLAYWRIGHT_BASE_URL` to test an already-running deployment without
 starting Vite preview, including the production container on port 8080.
 
-Focus tests with `pnpm test -- tests/core-flows.spec.js` or
-`pnpm test -- tests/curator-settings.spec.js -g "<test title>"`. There are
+Focus tests with `pnpm test tests/core-flows.spec.js` or
+`pnpm test tests/curator-settings.spec.js -g "<test title>"`. There are
 currently no package lint, format, or typecheck scripts. CI shell helpers under
 `scripts/ci/` must pass `shellcheck scripts/ci/*.sh`.
 
@@ -186,12 +186,16 @@ currently no package lint, format, or typecheck scripts. CI shell helpers under
 - GHCR images are public at `ghcr.io/meter-ac/my.meter.ac`. The operations-owned
   production deployment contract has Watchtower track mutable `latest`;
   deployments can use commit-addressed tags or digests for rollback. Old
-  workflow reruns must not move `latest` or `pr-N` backward. Preview tags
-  intentionally omit attestations and signing.
+  `master` runs must not move `latest` backward, and workflows for older PR
+  heads must not move `pr-N` backward. Preview tags intentionally omit
+  attestations and signing.
+- Stale pull-request validation jobs cancel independently per PR. Push and
+  workflow-dispatch validation use unique run IDs and do not cancel one another.
 - Preview publication is serialized by the `pr-image-N` concurrency group.
   Publication and closed-PR cleanup both use `queue: max` with cancellation
   disabled, so deletion follows every in-flight or pending publication for the
-  same pull request.
+  same pull request. Production publication is serialized separately with the
+  same non-cancelling queue behavior.
 - `.github/workflows/cleanup-pr-images.yml` runs when a `master` pull request
   closes and supports manual recovery by closed pull-request number. It never
   checks out or executes pull-request code and receives only
@@ -217,7 +221,10 @@ currently no package lint, format, or typecheck scripts. CI shell helpers under
   notice drift, starts the image with the production hardening flags, and checks
   health, routing, caching, legal files, runtime UID, and security headers
   without publishing the image. Reproduce the probes with
-  `scripts/ci/validate-container.sh IMAGE linux/amd64`.
+  `scripts/ci/validate-container.sh IMAGE linux/amd64`. The
+  `ALLOW_HTTP_HEALTH_FALLBACK=true` escape hatch is only for local runtimes such
+  as Podman that omit Docker health status; it is rejected in CI because it does
+  not validate the image's own health check.
 - `.github/dependabot.yml` checks the `github-actions`, `npm`, and `docker`
   ecosystems weekly. Version updates have a three-day cooldown; security updates
   do not. Node container updates stay on major 24 unless deliberately changed.

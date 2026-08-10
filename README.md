@@ -113,7 +113,8 @@ new revisions of that pull request, while the commit-addressed tag pins one
 tested merge revision and is never replaced by a rerun. Preview images
 deliberately omit SBOM, provenance, and signatures. Fork and Dependabot pull
 requests never publish images. Rerunning an older workflow cannot move `pr-N`
-or production `latest` backward; rollback uses an explicit commit tag or digest.
+backward to an older PR head, and an older `master` run cannot move production
+`latest` backward; rollback uses an explicit commit tag or digest.
 
 Closing a trusted pull request runs cleanup for all of its tagged preview
 versions. A container already running from that image can continue until it is
@@ -157,7 +158,10 @@ docker run --rm \
 
 Run the same deterministic runtime probes as CI with
 `scripts/ci/validate-container.sh my-meter-ac:local linux/amd64`. Shell helpers
-must pass `shellcheck scripts/ci/*.sh`.
+must pass `shellcheck scripts/ci/*.sh`. Local runtimes such as Podman that omit
+Docker health status may set `ALLOW_HTTP_HEALTH_FALLBACK=true`; the fallback
+checks `/healthz` directly instead of the image's own health check and is
+therefore rejected whenever `CI=true`.
 
 The health endpoint is `http://127.0.0.1:8080/healthz`. Production must retain
 the read-only root and writable `/tmp` tmpfs contract shown above. CI validates
