@@ -186,7 +186,8 @@ this image on every event before any eligible trusted publication job runs.
 - **Legal artifacts ship with the application.** `/LICENSE.txt`, `/NOTICE.txt`,
   and `/THIRD_PARTY_NOTICES.txt` are included in the final image and use the
   non-immutable cache class. Runtime component terms are included in the
-  third-party notices.
+  third-party notices. npm package notices are intentionally version-independent;
+  their exact versions are recorded by the lockfile.
 
 ## License and security
 

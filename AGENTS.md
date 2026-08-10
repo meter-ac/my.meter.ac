@@ -260,8 +260,11 @@ currently no package lint, format, or typecheck scripts. CI shell helpers under
 
 - Apache-2.0 covers original repository code only. Third-party packages,
   inherited assets, generated runtime code, map tiles, and external data retain
-  their own terms; maintain `THIRD_PARTY_NOTICES.md` when any dependency or
-  bundled asset changes.
+  their own terms. Review `THIRD_PARTY_NOTICES.md` when a dependency or bundled
+  asset changes, and update it when the applicable license, copyright, or
+  attribution changes. Do not record npm package versions there; use the
+  lockfile as the npm version inventory. OCI SBOM/provenance records the final
+  container runtime and build provenance, not build-stage npm packages.
 - Keep `LICENSE`, `NOTICE`, and `THIRD_PARTY_NOTICES.md` byte-synchronized with
   `public/LICENSE.txt`, `public/NOTICE.txt`, and
   `public/THIRD_PARTY_NOTICES.txt`. Vite copies these legal artifacts into
