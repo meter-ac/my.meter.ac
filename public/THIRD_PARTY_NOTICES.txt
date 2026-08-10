@@ -273,9 +273,10 @@ SOFTWARE.
 
 The production container uses
 `nginxinc/nginx-unprivileged:1.31.3-alpine3.24` for its runtime. The image is
-pinned in `Dockerfile` to its `linux/amd64` manifest digest. These runtime
-components retain their own terms and are not relicensed as part of this
-project.
+pinned in `Dockerfile` to reviewed `linux/amd64` manifest digest
+`sha256:72fe62fff57f9d244024b741bd0e2d62af3ce1083e331499b26a2dcf6d962732`.
+These runtime components retain their own terms and are not relicensed as part
+of this project.
 
 The unprivileged NGINX image tooling is released under the Apache License 2.0.
 Its source is available at

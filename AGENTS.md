@@ -143,12 +143,14 @@ src/
 
 ## Development
 
-Use the exact Node.js 24 and pnpm 11 releases pinned in `.node-version` and
-`package.json`'s `packageManager`; keep development, CI, and image builds aligned
-with them. Install reproducibly with `pnpm install --frozen-lockfile`; use
-`pnpm dev` for Vite, `pnpm build` for static output, and `pnpm test` for the live
-Playwright suite. Install Chromium on a fresh machine with
-`pnpm exec playwright install chromium` (`--with-deps` may be needed on Linux).
+Use the exact Node.js 24 release from the digest-pinned `Dockerfile` build stage
+and the exact pnpm 11 release from `package.json`'s `packageManager`; print the
+expected Node release with `scripts/ci/read-node-version.sh`. The Dockerfile is
+the exact Node source so Docker Dependabot updates also update CI. Install
+reproducibly with `pnpm install --frozen-lockfile`; use `pnpm dev` for Vite,
+`pnpm build` for static output, and `pnpm test` for the live Playwright suite.
+Install Chromium on a fresh machine with `pnpm exec playwright install chromium`
+(`--with-deps` may be needed on Linux).
 
 Playwright builds and serves fresh production output with Vite preview on
 `http://localhost:5173` and exercises live services; network access is required,
@@ -161,37 +163,44 @@ configuration.
 Set `PLAYWRIGHT_BASE_URL` to test an already-running deployment without
 starting Vite preview, including the production container on port 8080.
 
-Focus tests with `pnpm test -- tests/core-flows.spec.js` or
-`pnpm test -- tests/curator-settings.spec.js -g "<test title>"`. There are
-currently no lint, format, or typecheck scripts.
+Focus tests with `pnpm test tests/core-flows.spec.js` or
+`pnpm test tests/curator-settings.spec.js -g "<test title>"`. There are
+currently no package lint, format, or typecheck scripts. CI shell helpers under
+`scripts/ci/` must pass `shellcheck scripts/ci/*.sh`.
 
 ## Continuous integration
 
 - `.github/workflows/ci.yml` runs for pull requests targeting `master`, pushes
   to `master`, and manual dispatches. `Playwright`, `Dependency review`, and
   `Container` are required pull-request checks.
-- Validation and untrusted-image jobs have read-only repository permission.
-  Fork and Dependabot pull requests build without registry login or publication.
-  Only trusted same-repository preview jobs receive `packages: write`; only the
-  `master` production job also receives `id-token: write` for keyless signing.
+- Validation jobs have read-only repository permission. Fork and Dependabot pull
+  requests build once in the required `Container` job without registry login or
+  publication. Only trusted same-repository preview jobs receive
+  `packages: write`; only the `master` production job also receives
+  `id-token: write` for keyless signing.
 - Trusted pull requests publish `pr-N` and `pr-N-sha-<full-merge-commit>` after
   validation without replacing existing commit tags. Successful `master` runs
   build `sha-<full-commit>` with BuildKit SBOM/maximal provenance, sign and
   verify its digest with Cosign/GitHub OIDC, and only then publish the commit tag
   and advance `latest`. Workflow dispatch validates without publishing.
-- GHCR images are public at `ghcr.io/meter-ac/my.meter.ac`. Production
-  Watchtower tracks mutable `latest`; deployments can use commit-addressed tags
-  or digests for rollback. Old workflow reruns must not move `latest` or `pr-N`
-  backward. Preview tags intentionally omit attestations and signing.
+- GHCR images are public at `ghcr.io/meter-ac/my.meter.ac`. The operations-owned
+  production deployment contract has Watchtower track mutable `latest`;
+  deployments can use commit-addressed tags or digests for rollback. Old
+  `master` runs must not move `latest` backward, and workflows for older PR
+  heads must not move `pr-N` backward. Preview tags intentionally omit
+  attestations and signing.
+- Stale pull-request validation jobs cancel independently per PR. Push and
+  workflow-dispatch validation use unique run IDs and do not cancel one another.
 - Preview publication is serialized by the `pr-image-N` concurrency group.
   Publication and closed-PR cleanup both use `queue: max` with cancellation
   disabled, so deletion follows every in-flight or pending publication for the
-  same pull request.
+  same pull request. Production publication is serialized separately with the
+  same non-cancelling queue behavior.
 - `.github/workflows/cleanup-pr-images.yml` runs when a `master` pull request
   closes and supports manual recovery by closed pull-request number. It never
-  checks out or executes pull-request code and receives only `contents: read`
-  and `packages: write`. Use manual recovery when GitHub suppresses the close
-  workflow for a conflicted pull request.
+  checks out or executes pull-request code and receives only
+  `pull-requests: read` and `packages: write`. Use manual recovery when GitHub
+  suppresses the close workflow for a conflicted pull request.
 - Cleanup paginates active GHCR versions and deletes only version IDs tagged
   exactly `pr-N` or with the `pr-N-sha-` prefix. It must not use broad retention
   rules or delete a version carrying unrelated tags. Missing or already-deleted
@@ -208,8 +217,14 @@ currently no lint, format, or typecheck scripts.
   publication jobs rebuild on clean runners after required validation succeeds.
 - Playwright uses live external services and uploads its report, traces, and
   screenshots for seven days on failure. Container validation builds only
-  `linux/amd64`, starts the image with the production hardening flags, and checks
-  health, routing, caching, and security headers without publishing the image.
+  `linux/amd64`, requires ShellCheck for CI helpers, detects container-base
+  notice drift, starts the image with the production hardening flags, and checks
+  health, routing, caching, legal files, runtime UID, and security headers
+  without publishing the image. Reproduce the probes with
+  `scripts/ci/validate-container.sh IMAGE linux/amd64`. The
+  `ALLOW_HTTP_HEALTH_FALLBACK=true` escape hatch is only for local runtimes such
+  as Podman that omit Docker health status; it is rejected in CI because it does
+  not validate the image's own health check.
 - `.github/dependabot.yml` checks the `github-actions`, `npm`, and `docker`
   ecosystems weekly. Version updates have a three-day cooldown; security updates
   do not. Node container updates stay on major 24 unless deliberately changed.
