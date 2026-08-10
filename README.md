@@ -103,9 +103,9 @@ workflow generates a BuildKit SBOM and maximal provenance, signs the resulting
 digest once with keyless Cosign through GitHub OIDC, verifies that signature,
 and only then creates the commit tag and advances `latest`. Reruns reuse rather
 than replace an existing commit tag, after confirming its revision and platform
-metadata. The production deployment contract has Watchtower track `latest`;
-use a commit tag or digest for an immutable rollback reference. Production
-cutover remains an operations-owned task outside this repository.
+metadata. The operations-owned production deployment tracks `latest` through
+Watchtower; use a commit tag or digest for an immutable rollback reference.
+Production is live at [my.meter.ac](https://my.meter.ac/).
 
 Trusted same-repository pull requests publish mutable `pr-N` and commit-
 addressed `pr-N-sha-<full-merge-commit>` preview tags. The mutable tag follows
