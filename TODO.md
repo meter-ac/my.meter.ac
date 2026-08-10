@@ -60,9 +60,8 @@ exact `pr-N` or `pr-N-sha-*` tags. Cleanup shares the publisher's queued
 tags, and supports idempotent manual recovery for any closed pull request
 number, including conflicted PRs whose close workflow is suppressed.
 
-## Operations handoff and production cutover — pending
+## Operations handoff and production cutover — done
 
-Image publication is complete, but the authoritative Compose, Traefik,
-Watchtower, cutover, and rollback verification belong to the server/operations
-repository. Complete that handoff before describing the `latest` deployment as
-live production or removing the local implementation plan.
+The authoritative Compose, Traefik, and Watchtower configuration remains in the
+server/operations repository. The handoff, production cutover, and rollback
+verification are complete, and production tracks the published `latest` image.
