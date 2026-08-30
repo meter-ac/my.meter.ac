@@ -154,17 +154,29 @@ export default function App() {
       setSelectedParameter(param);
       return;
     }
+    // Guard against stale responses: if the setting, parameter, or play
+    // state changes before this request resolves, the superseded fetch
+    // must not overwrite the current frames, error, or loading state.
+    let active = true;
     setIsPlaying(false);
     setIsLoadingTimeLapse(true);
     setTimeLapseError(null);
     fetchParameterTimeSeries(param, curatorSettings.timeLapseStartTime)
       .then((frames) => {
+        if (!active) return;
         frameGridCache.current = new Map();
         setTimeLapseFrames(frames);
         setFrameIndex(0);
       })
-      .catch((err) => setTimeLapseError(err.message))
-      .finally(() => setIsLoadingTimeLapse(false));
+      .catch((err) => {
+        if (!active) return;
+        setTimeLapseError(err.message);
+      })
+      .finally(() => {
+        if (!active) return;
+        setIsLoadingTimeLapse(false);
+      });
+    return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTimeLapse, selectedParameter, curatorSettings.timeLapseStartTime]);
 
