@@ -107,6 +107,10 @@ cap the period for wide scopes or restrict to a narrow scope for long periods.
   interpolation. When enabled, the fence removes outliers from IDW and Voronoi
   surfaces while station markers still show the underlying readings. It does not
   replace fixed or EAQI display scales.
+- The curator setting `timeLapseStartTime` shifts the time-lapse data window
+  from the default (last 24h ending at now) to a fixed 24h window starting at
+  the chosen datetime, for historical playback. The frame grid cache is
+  invalidated when this setting changes.
 - **Sparse data is normal, not an error.** Every station reports a different subset
   of parameters. Values may be absent or `null`; detail views omit missing fields
   while tables may render a neutral dash. Never manufacture zero readings.

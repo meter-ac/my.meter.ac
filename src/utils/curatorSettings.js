@@ -7,6 +7,10 @@ const DEFAULTS = {
   useTukeyFences: true,
   showOfflineCameras: true,
   interpolationMethod: 'idw', // 'idw' | 'voronoi'
+  // Timelapse start time — null means "now" (last 24h ending at the moment
+  // of fetch). When set to an ISO datetime string, the timelapse loads the
+  // 24h window starting at that time instead, allowing historical playback.
+  timeLapseStartTime: null,
 };
 
 export function getCuratorSettings() {

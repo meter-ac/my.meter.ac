@@ -78,11 +78,11 @@ export default function App() {
   const frameGridCache = useRef(new Map());
 
   // Cached per-frame grids were built under whatever outlier-fencing/
-  // interpolation-method setting was active at the time — stale once either
-  // changes, so drop them rather than show an old setting's grid.
+  // interpolation-method/start-time setting was active at the time — stale
+  // once any of those changes, so drop them rather than show an old setting's grid.
   useEffect(() => {
     frameGridCache.current = new Map();
-  }, [curatorSettings.useTukeyFences, curatorSettings.interpolationMethod]);
+  }, [curatorSettings.useTukeyFences, curatorSettings.interpolationMethod, curatorSettings.timeLapseStartTime]);
 
   useEffect(() => {
     Promise.all([fetchStations(), fetchLatestReadings(), fetchDayAverageReadings(), fetchCameraNodeIds()])
@@ -154,19 +154,31 @@ export default function App() {
       setSelectedParameter(param);
       return;
     }
+    // Guard against stale responses: if the setting, parameter, or play
+    // state changes before this request resolves, the superseded fetch
+    // must not overwrite the current frames, error, or loading state.
+    let active = true;
     setIsPlaying(false);
     setIsLoadingTimeLapse(true);
     setTimeLapseError(null);
-    fetchParameterTimeSeries(param)
+    fetchParameterTimeSeries(param, curatorSettings.timeLapseStartTime)
       .then((frames) => {
+        if (!active) return;
         frameGridCache.current = new Map();
         setTimeLapseFrames(frames);
         setFrameIndex(0);
       })
-      .catch((err) => setTimeLapseError(err.message))
-      .finally(() => setIsLoadingTimeLapse(false));
+      .catch((err) => {
+        if (!active) return;
+        setTimeLapseError(err.message);
+      })
+      .finally(() => {
+        if (!active) return;
+        setIsLoadingTimeLapse(false);
+      });
+    return () => { active = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTimeLapse, selectedParameter]);
+  }, [isTimeLapse, selectedParameter, curatorSettings.timeLapseStartTime]);
 
   useEffect(() => {
     if (!isPlaying || timeLapseFrames.length === 0) return;
@@ -276,7 +288,7 @@ export default function App() {
       if (isLoadingTimeLapse) subtitle = 'Loading 24h history…';
       else if (timeLapseError) subtitle = `Couldn't load history: ${timeLapseError}`;
       else if (currentFrame) {
-        subtitle = `${activeField?.label ?? ''} · ${formatFrameTime(currentFrame.timestamp)} (${frameIndex + 1}/${timeLapseFrames.length})`;
+        subtitle = `${activeField?.label ?? ''} · ${formatFrameTime(currentFrame.timestamp)} (${frameIndex + 1}/${timeLapseFrames.length})${curatorSettings.timeLapseStartTime ? ' · historical' : ''}`;
       } else {
         subtitle = 'No history available';
       }

@@ -183,6 +183,37 @@ body {
   cursor: pointer;
 }
 
+.modal__datetime-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.4rem;
+}
+
+.modal__datetime-row input[type="datetime-local"] {
+  font-size: 0.85rem;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  max-width: 280px;
+}
+
+.modal__clear-button {
+  border: 1px solid #ccc;
+  background: transparent;
+  color: #666;
+  border-radius: 4px;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  margin-top: 0.3rem;
+  align-self: flex-start;
+}
+
+.modal__clear-button:hover {
+  background: #f4f6f8;
+}
+
 .app__error {
   padding: 0.5rem 1rem;
   background: #ffe1e1;
