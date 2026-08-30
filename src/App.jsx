@@ -78,11 +78,11 @@ export default function App() {
   const frameGridCache = useRef(new Map());
 
   // Cached per-frame grids were built under whatever outlier-fencing/
-  // interpolation-method setting was active at the time — stale once either
-  // changes, so drop them rather than show an old setting's grid.
+  // interpolation-method/start-time setting was active at the time — stale
+  // once any of those changes, so drop them rather than show an old setting's grid.
   useEffect(() => {
     frameGridCache.current = new Map();
-  }, [curatorSettings.useTukeyFences, curatorSettings.interpolationMethod]);
+  }, [curatorSettings.useTukeyFences, curatorSettings.interpolationMethod, curatorSettings.timeLapseStartTime]);
 
   useEffect(() => {
     Promise.all([fetchStations(), fetchLatestReadings(), fetchDayAverageReadings(), fetchCameraNodeIds()])
@@ -157,7 +157,7 @@ export default function App() {
     setIsPlaying(false);
     setIsLoadingTimeLapse(true);
     setTimeLapseError(null);
-    fetchParameterTimeSeries(param)
+    fetchParameterTimeSeries(param, curatorSettings.timeLapseStartTime)
       .then((frames) => {
         frameGridCache.current = new Map();
         setTimeLapseFrames(frames);
@@ -276,7 +276,7 @@ export default function App() {
       if (isLoadingTimeLapse) subtitle = 'Loading 24h history…';
       else if (timeLapseError) subtitle = `Couldn't load history: ${timeLapseError}`;
       else if (currentFrame) {
-        subtitle = `${activeField?.label ?? ''} · ${formatFrameTime(currentFrame.timestamp)} (${frameIndex + 1}/${timeLapseFrames.length})`;
+        subtitle = `${activeField?.label ?? ''} · ${formatFrameTime(currentFrame.timestamp)} (${frameIndex + 1}/${timeLapseFrames.length})${curatorSettings.timeLapseStartTime ? ' · historical' : ''}`;
       } else {
         subtitle = 'No history available';
       }

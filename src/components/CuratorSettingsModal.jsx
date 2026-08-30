@@ -1,3 +1,16 @@
+// datetime-local inputs expect "YYYY-MM-DDTHH:MM" in the browser's local
+// timezone (no offset suffix), but we store the setting as a UTC ISO string.
+// This converts a stored ISO string back to the local-time format the input
+// needs for its value attribute.
+function toLocalDateTimeString(isoString) {
+  const d = new Date(isoString);
+  const pad = (n) => String(n).padStart(2, '0');
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T` +
+    `${pad(d.getHours())}:${pad(d.getMinutes())}`
+  );
+}
+
 export default function CuratorSettingsModal({ settings, onChange, onClose }) {
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -80,6 +93,43 @@ export default function CuratorSettingsModal({ settings, onChange, onClose }) {
               weighted by distance. Voronoi instead gives each grid cell its single nearest station&apos;s value
               outright — flat regions with hard edges at the midpoint between stations, but a bad reading can never
               bleed past its own region the way it can with IDW&apos;s smooth, unbounded blending.
+            </p>
+          </details>
+        </div>
+
+        <div className="modal__option-row">
+          <label className="modal__option">
+            <span className="modal__option-title">Timelapse start time</span>
+            <p className="modal__option-hint">
+              Defaults to &quot;now&quot; (last 24h ending at the moment of fetch). Set a time to play back
+              historical data from a 24h window starting at that moment instead.
+            </p>
+            <div className="modal__datetime-row">
+              <input
+                type="datetime-local"
+                value={settings.timeLapseStartTime ? toLocalDateTimeString(settings.timeLapseStartTime) : ''}
+                onChange={(e) =>
+                  onChange({
+                    timeLapseStartTime: e.target.value ? new Date(e.target.value).toISOString() : null,
+                  })
+                }
+              />
+              {settings.timeLapseStartTime && (
+                <button
+                  type="button"
+                  className="modal__clear-button"
+                  onClick={() => onChange({ timeLapseStartTime: null })}
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </label>
+          <details className="modal__option-details">
+            <summary>How does this work?</summary>
+            <p className="modal__option-hint">
+              When set, the timelapse loads the 24-hour window starting at your chosen time instead of the live
+              last-24h. The setting persists across reloads. Clear it to return to live behavior.
             </p>
           </details>
         </div>
