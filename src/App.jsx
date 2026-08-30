@@ -166,7 +166,7 @@ export default function App() {
       .catch((err) => setTimeLapseError(err.message))
       .finally(() => setIsLoadingTimeLapse(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTimeLapse, selectedParameter]);
+  }, [isTimeLapse, selectedParameter, curatorSettings.timeLapseStartTime]);
 
   useEffect(() => {
     if (!isPlaying || timeLapseFrames.length === 0) return;

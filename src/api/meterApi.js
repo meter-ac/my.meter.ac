@@ -105,9 +105,17 @@ export async function fetchParameterTimeSeries(parameterKey, startTime = null) {
   // When startTime is provided, shift the 24h window to [startTime, startTime+24h)
   // so the timelapse plays back historical data instead of the live last-24h.
   // InfluxQL accepts RFC3339 datetime literals like '2024-01-15T10:00:00.000Z'.
+  //
+  // InfluxDB's GROUP BY time(30m) buckets are aligned to fixed epoch boundaries
+  // (:00 and :30 minutes past each hour), not to the user's chosen start time.
+  // Selecting 14:46 under the old approach would yield a first frame timestamped
+  // 14:30 containing only 14:46–15:00 of data — up to 29 minutes of mismatch.
+  // Rounding the start down to the nearest 30-minute boundary ensures every
+  // frame represents a full bucket and its timestamp matches the data window.
   let timeClause;
   if (startTime) {
     const start = new Date(startTime);
+    start.setMinutes(start.getMinutes() - (start.getMinutes() % TIME_LAPSE_BUCKET_MINUTES), 0, 0);
     const end = new Date(start.getTime() + TIME_LAPSE_HOURS * 3600 * 1000);
     timeClause = `time >= '${start.toISOString()}' and time < '${end.toISOString()}'`;
   } else {
