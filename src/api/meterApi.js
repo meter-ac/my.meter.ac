@@ -101,8 +101,27 @@ const TIME_LAPSE_BUCKET_MINUTES = 30;
 // shape as the other fetchers' rows, so every existing `reading[key]` call
 // site (marker coloring, popup field list) works unchanged on a time-lapse
 // frame without special-casing.
-export async function fetchParameterTimeSeries(parameterKey) {
-  const query = `select mean(${parameterKey}) as ${parameterKey} from box where ${LOCATION_FILTER} and time > now() - ${TIME_LAPSE_HOURS}h group by node_id, time(${TIME_LAPSE_BUCKET_MINUTES}m) fill(none)`;
+export async function fetchParameterTimeSeries(parameterKey, startTime = null) {
+  // When startTime is provided, shift the 24h window to [startTime, startTime+24h)
+  // so the timelapse plays back historical data instead of the live last-24h.
+  // InfluxQL accepts RFC3339 datetime literals like '2024-01-15T10:00:00.000Z'.
+  //
+  // InfluxDB's GROUP BY time(30m) buckets are aligned to fixed epoch boundaries
+  // (:00 and :30 minutes past each hour), not to the user's chosen start time.
+  // Selecting 14:46 under the old approach would yield a first frame timestamped
+  // 14:30 containing only 14:46–15:00 of data — up to 29 minutes of mismatch.
+  // Rounding the start down to the nearest 30-minute boundary ensures every
+  // frame represents a full bucket and its timestamp matches the data window.
+  let timeClause;
+  if (startTime) {
+    const start = new Date(startTime);
+    start.setMinutes(start.getMinutes() - (start.getMinutes() % TIME_LAPSE_BUCKET_MINUTES), 0, 0);
+    const end = new Date(start.getTime() + TIME_LAPSE_HOURS * 3600 * 1000);
+    timeClause = `time >= '${start.toISOString()}' and time < '${end.toISOString()}'`;
+  } else {
+    timeClause = `time > now() - ${TIME_LAPSE_HOURS}h`;
+  }
+  const query = `select mean(${parameterKey}) as ${parameterKey} from box where ${LOCATION_FILTER} and ${timeClause} group by node_id, time(${TIME_LAPSE_BUCKET_MINUTES}m) fill(none)`;
   const url = `${INFLUX_QUERY_URL}?db=${INFLUX_DB}&u=${INFLUX_USER}&p=${INFLUX_PASSWORD}&q=${encodeURIComponent(query)}`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Failed to load time series (${res.status})`);

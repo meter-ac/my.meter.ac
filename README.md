@@ -14,7 +14,8 @@ See [AGENTS.md](./AGENTS.md) for the architecture and data-source reference.
 
 - **Map** — station markers colored by any parameter, an IDW-interpolated
   heatmap, isobar/isotherm contour lines, altitude-corrected temperature (DEM-
-  based), Current/24h-average/Time-lapse modes.
+  based), Current/24h-average/Time-lapse modes. The time-lapse start time can
+  be configured in Curator settings for historical playback.
 - **Table** — sortable/filterable station lists across the Nodes, Meteo, and
   Earth (radon) networks, plus recent-earthquake and background-radiation
   reference tables.
@@ -45,6 +46,26 @@ existing public endpoints (a plain file server for station metadata/cameras,
 a public read-only InfluxDB query API for readings) from the browser, in dev
 and in production alike. The committed InfluxDB client credential is
 intentionally public and read-only; public forks require no secrets.
+
+### Development on Windows
+
+The instructions above use `pnpm` and POSIX shell syntax. On Windows:
+
+- **Prerequisites**: Node.js 24 (from [nodejs.org](https://nodejs.org/) or
+  [winget](https://learn.microsoft.com/en-us/windows/package-manager/winget/))
+  and pnpm 11. Install pnpm with `npm install -g pnpm@11` or enable Corepack
+  with `corepack enable pnpm`.
+- **PowerShell / Command Prompt** — the `scripts/ci/read-node-version.sh`
+  helper requires a POSIX shell; instead just verify your Node version with
+  `node -v`. The `pnpm` commands work as-is:
+  ```powershell
+  pnpm install --frozen-lockfile
+  pnpm dev
+  ```
+- **Git Bash / WSL** — the POSIX instructions work unchanged if you're using
+  Git Bash, WSL, or a similar environment.
+- If you only have `npm` available, you can substitute `npx pnpm` for `pnpm`
+  (e.g. `npx pnpm install --frozen-lockfile`).
 
 ### Tests
 
