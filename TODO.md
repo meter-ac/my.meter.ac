@@ -41,9 +41,10 @@ read-only permissions. Untrusted pnpm and Docker caches are disabled. Dependabot
 checks Actions, pnpm-managed dependencies, and Docker bases weekly with a
 three-day version cooldown; security updates remain exempt and pass through the
 same CI. The required container check also runs ShellCheck over reusable CI
-helpers and verifies container-base notice consistency. Dependency review
-enforces the repository's accepted license set, while npm notices remain
-version-independent and the lockfile provides their exact version inventory.
+helpers and verifies retained runtime license files. Dependency review enforces
+the repository's accepted license set, while notices remain version-independent;
+the lockfile, Dockerfile, image package database, and production SPDX SBOM
+provide exact version inventory.
 
 ## GHCR image publication — done
 

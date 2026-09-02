@@ -149,6 +149,21 @@ test('npm notices are version-independent and match dependency licenses', async 
   }
 });
 
+test('container runtime notices are version-independent', async () => {
+  const notices = await readFile(`${projectRoot}/THIRD_PARTY_NOTICES.md`, 'utf8');
+  const runtimeNotices = notices.match(/## Production container runtime[\s\S]*?(?=\n## )/)?.[0] ?? '';
+
+  expect(runtimeNotices).not.toBe('');
+  expect(runtimeNotices).toContain('`nginxinc/nginx-unprivileged` image');
+  expect(runtimeNotices).toContain('NGINX and its bundled modules');
+  expect(runtimeNotices).toContain('under `/usr/share/licenses`');
+  expect(runtimeNotices).toMatch(/published production images include an\s+SPDX SBOM/);
+  expect(runtimeNotices).not.toMatch(/nginxinc\/nginx-unprivileged:[^\s`]+/);
+  expect(runtimeNotices).not.toMatch(/\bNGINX \d+\.\d+\.\d+\b/);
+  expect(runtimeNotices).not.toMatch(/\bAlpine(?: Linux)? \d+\.\d+\b/);
+  expect(runtimeNotices).not.toMatch(/sha256:[0-9a-f]{64}/);
+});
+
 test('map tiles use the current OSM host with an origin Referer', async ({ page }) => {
   const mapSource = await readFile(`${projectRoot}/src/components/StationMap.jsx`, 'utf8');
   expect(mapSource).toContain('url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"');
