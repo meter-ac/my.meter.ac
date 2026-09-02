@@ -111,6 +111,24 @@ for path in /app /src /tests /.git /playwright-report /test-results; do
   fi
 done
 
+if ! docker exec "$container" sh -c 'test -s /lib/apk/db/installed'; then
+  printf 'Runtime package database is missing or empty.\n' >&2
+  exit 1
+fi
+
+for path in \
+  /usr/share/licenses/nginx/COPYRIGHT \
+  /usr/share/licenses/nginx-module-geoip/COPYRIGHT \
+  /usr/share/licenses/nginx-module-image-filter/COPYRIGHT \
+  /usr/share/licenses/nginx-module-njs/COPYRIGHT \
+  /usr/share/licenses/nginx-module-xslt/COPYRIGHT; do
+  if ! docker exec "$container" grep -Fq \
+    'Redistribution and use in source and binary forms' "$path"; then
+    printf 'Runtime license text is missing from %s.\n' "$path" >&2
+    exit 1
+  fi
+done
+
 web_root_entries=$(docker exec "$container" sh -c \
   'ls -1A /usr/share/nginx/html | sort')
 expected_web_root_entries=$(printf '%s\n' \

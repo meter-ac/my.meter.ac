@@ -221,10 +221,10 @@ currently no package lint, format, or typecheck scripts. CI shell helpers under
   publication jobs rebuild on clean runners after required validation succeeds.
 - Playwright uses live external services and uploads its report, traces, and
   screenshots for seven days on failure. Container validation builds only
-  `linux/amd64`, requires ShellCheck for CI helpers, detects container-base
-  notice drift, starts the image with the production hardening flags, and checks
-  health, routing, caching, legal files, runtime UID, and security headers
-  without publishing the image. Reproduce the probes with
+  `linux/amd64`, requires ShellCheck for CI helpers, verifies container-base
+  license files, starts the image with the production hardening flags, and
+  checks health, routing, caching, legal files, runtime UID, and security
+  headers without publishing the image. Reproduce the probes with
   `scripts/ci/validate-container.sh IMAGE linux/amd64`. The
   `ALLOW_HTTP_HEALTH_FALLBACK=true` escape hatch is only for local runtimes such
   as Podman that omit Docker health status; it is rejected in CI because it does
@@ -266,14 +266,16 @@ currently no package lint, format, or typecheck scripts. CI shell helpers under
   inherited assets, generated runtime code, map tiles, and external data retain
   their own terms. Review `THIRD_PARTY_NOTICES.md` when a dependency or bundled
   asset changes, and update it when the applicable license, copyright, or
-  attribution changes. Do not record npm package versions there; use the
-  lockfile as the npm version inventory. OCI SBOM/provenance records the final
-  container runtime and build provenance, not build-stage npm packages.
+  attribution changes. Do not record package versions, image tags, or digests
+  there; use the lockfile, Dockerfile, image package database, and OCI
+  SBOM/provenance for exact inventory and build provenance.
 - Keep `LICENSE`, `NOTICE`, and `THIRD_PARTY_NOTICES.md` byte-synchronized with
   `public/LICENSE.txt`, `public/NOTICE.txt`, and
-  `public/THIRD_PARTY_NOTICES.txt`. Vite copies these legal artifacts into
-  static output. When a container base changes, review its package-license
-  inventory and update the runtime section of the notices.
+  `public/THIRD_PARTY_NOTICES.txt`. Vite copies these legal artifacts into static
+  output. When a container base changes, review whether its license, copyright,
+  or attribution terms changed. Preserve its package-provided license files in
+  `/usr/share/licenses`; routine version and digest changes do not change the
+  notices.
 - `src/assets/bulgaria.topo.json` retains the original 2020 meter.ac MIT
   notice. `src/assets/bulgaria-dem.json` derives from public-domain NASA/USGS
   SRTM data retrieved through Open Topo Data. `docs/screenshot.png` includes

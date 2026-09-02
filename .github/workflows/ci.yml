@@ -113,7 +113,7 @@ jobs:
       - name: Check container policy
         run: |
           scripts/ci/read-node-version.sh
-          scripts/ci/check-runtime-notices.sh
+          scripts/ci/check-runtime-image.sh
           docker build --check .
 
       - name: Build image

@@ -274,83 +274,24 @@ SOFTWARE.
 
 ## Production container runtime
 
-The production container uses
-`nginxinc/nginx-unprivileged:1.31.3-alpine3.24` for its runtime. The image is
-pinned in `Dockerfile` to reviewed `linux/amd64` manifest digest
-`sha256:72fe62fff57f9d244024b741bd0e2d62af3ce1083e331499b26a2dcf6d962732`.
-These runtime components retain their own terms and are not relicensed as part
-of this project.
+The production container uses the `nginxinc/nginx-unprivileged` image, built
+from NGINX and Alpine Linux. These runtime components retain their own terms
+and are not relicensed as part of this project.
 
 The unprivileged NGINX image tooling is released under the Apache License 2.0.
 Its source is available at
 https://github.com/nginx/docker-nginx-unprivileged. A copy of the Apache
 License 2.0 is distributed as `LICENSE` and `/LICENSE.txt`.
 
-NGINX 1.31.3 and its GeoIP, image-filter, and XSLT modules carry this notice
-under a two-clause BSD-like license:
+NGINX and its bundled modules are distributed under two-clause BSD-like
+licenses. Their package-provided copyright and license texts remain in the
+image under `/usr/share/licenses`; NGINX source is available at
+https://nginx.org/en/download.html.
 
-Copyright (C) Igor Sysoev
-Copyright (C) Nginx, Inc.
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice,
-   this list of conditions and the following disclaimer.
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS "AS IS" AND ANY
-EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR ANY
-DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
-ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-The bundled njs module carries this notice under the same terms:
-
-Copyright (C) 2015-2020 NGINX, Inc.
-Copyright (C) 2015-2020 Igor Sysoev
-Copyright (C) 2017-2020 Dmitry Volyntsev
-Copyright (C) 2019-2020 Alexander Borisov
-All rights reserved.
-
-Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met:
-
-1. Redistributions of source code must retain the above copyright notice,
-   this list of conditions and the following disclaimer.
-2. Redistributions in binary form must reproduce the above copyright notice,
-   this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution.
-
-THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS "AS IS" AND ANY
-EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
-WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE FOR ANY
-DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
-(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
-LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
-ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
-(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
-SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-
-The runtime is based on Alpine Linux 3.24. Its installed package database
-records the exact package versions and declared licenses. The reviewed image
-contains packages under the following SPDX or upstream license identifiers:
-`0BSD`, `Apache-2.0`, `Beerware`, `BSD-2-Clause`, `BSD-3-Clause`, `bzip2-1.0.6`,
-`curl`, `FTL`, `GD`, `GPL-2.0-only`, `GPL-2.0-or-later`, `GPL-3.0-or-later`,
-`IJG`, `ISC`, `LGPL-2.1-or-later`, `LGPL-3.0-or-later`, `Libpng`, `libtiff`,
-`MIT`, `MPL-2.0`, `Public-Domain`, `X11`, and `Zlib`, plus AOM's custom patent
-license. Alpine package metadata and corresponding source are available from
-https://pkgs.alpinelinux.org/packages?branch=v3.24. The image's installed
-license files remain at `/usr/share/licenses`.
+The Alpine installed-package database in the image records exact package
+versions and declared licenses, while published production images include an
+SPDX SBOM. Alpine package metadata and corresponding source are available from
+https://pkgs.alpinelinux.org/packages.
 
 ## Inherited Bulgaria topology
 
