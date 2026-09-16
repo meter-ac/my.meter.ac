@@ -11,7 +11,7 @@ COPY public/ ./public/
 COPY src/ ./src/
 RUN pnpm build
 
-FROM nginxinc/nginx-unprivileged:1.31.5-alpine3.24@sha256:2ddec616f1cb58bcac057aa388f28cb81e35137641ef4226d321714499329bd1
+FROM nginxinc/nginx-unprivileged:1.31.6-alpine3.24@sha256:b54ac358b83fc6c965793fd271839b4ea4cdb6e99895bb19618cbc2ca152d972
 
 USER root
 RUN rm -rf /usr/share/nginx/html/*
